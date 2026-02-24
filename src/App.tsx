@@ -15,6 +15,9 @@ import { Search, Bell, Layout, LogOut } from "lucide-react";
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
   
+  // On ajoute un état pour contrôler la vidéo depuis ici
+  const [showIntro, setShowIntro] = useState(true);
+
   // On utilise un état local pour l'utilisateur pour forcer la mise à jour
   const { user: storeUser, isLoading, logout } = useUserStore();
   const [localUser, setLocalUser] = useState(storeUser);
@@ -24,11 +27,22 @@ export default function App() {
     setLocalUser(storeUser);
   }, [storeUser]);
 
+  // 👇 SÉCURITÉ ANTI-BLOCAGE VIDÉO 👇
+  useEffect(() => {
+    // Ce code force la disparition de la vidéo après 4 secondes
+    // même si elle a planté ou si le navigateur l'a bloquée.
+    const timer = setTimeout(() => {
+      console.log("Sécurité : Temps écoulé, affichage forcé du site.");
+      setShowIntro(false);
+    }, 2000); // 4000ms = 4 secondes
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // 👇 LA CORRECTION DU REFRESH 👇
   useEffect(() => {
     const handleLoginSuccess = () => {
       console.log("Signal reçu ! Mise à jour forcée...");
-      // On va chercher l'utilisateur directement dans la boîte, sans passer par le Store
       const saved = localStorage.getItem("userProfile");
       if (saved) {
         setLocalUser(JSON.parse(saved));
@@ -51,7 +65,6 @@ export default function App() {
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
 
-  // On utilise localUser au lieu de user du store
   if (!localUser) {
     return <Auth />;
   }
@@ -69,8 +82,8 @@ export default function App() {
   return (
     <div className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${localUser.theme}`}>
       
-      {/* La vidéo se lance ici si le signal est présent */}
-      <IntroVideo />
+      {/* CORRECTION ICI : On affiche la vidéo seulement si showIntro est vrai */}
+      {showIntro && <IntroVideo />}
 
       <Sidebar
         activeTab={activeTab}
