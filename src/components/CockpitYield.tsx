@@ -23,7 +23,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   // Fenêtres d'attribution en JOURS (Standard DSP)
   const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
-  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour
+  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour (Standard)
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -559,8 +559,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
-                        const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
+                        const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
                         const exceeds = newRevOpt1 > project.cpmSoldCap;
+                        const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
                         
                         let kpiOpt1 = 0, kpiPess1 = 0;
@@ -632,68 +633,63 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let dropPess = 1;
                         let expertExplanation = "";
                         
-                        // --- CERVEAU TRADER EXPERT v3.0 (Paroxysme) ---
+                        // --- CERVEAU TRADER EXPERT v4.0 (Masterclass) ---
                         // ANALYSE DE L'ATTRIBUTION ET DU CONTEXTE
                         const hasViewWindow = attrView > 0;
                         const isStrictClick = attrView === 0;
-                        const isLongView = attrView >= 3;
-                        const isMidView = attrView >= 1 && attrView < 3;
+                        const isLongView = attrView >= 2; // > 1 jour
+                        const isMidView = attrView >= 1 && attrView < 2;
                         
                         switch(project.kpiType) {
                           case "CPA":
                           case "CPL":
                             if (priceDrop >= 0) { // Baisse du Bid
                               if (isLongView) {
-                                // CAS 1 : Long Post-View (Cookie Dropping)
-                                // On achète du junk, mais le PV de 7j/30j sauve l'apparence.
-                                dropOpt = 0.85; // Le CPA s'améliore artificiellement (-15%)
-                                dropPess = 1.05; // Risque modéré
-                                expertExplanation = `🍪 STRATÉGIE "COOKIE DROPPING" : Avec une fenêtre Post-View de ${attrView} jours, vous opérez un arbitrage statistique. En baissant le bid, vous achetez du volume "Bas de Page" à très bas coût. L'objectif n'est pas de convertir, mais d'afficher une impression avant une conversion naturelle. Le CPA facial va baisser mécaniquement, mais l'incrémentalité sera nulle. Attention : risque majeur de cannibalisation du SEO/SEA.`;
+                                // CAS 1 : ARBITRAGE (Cookie Dropping)
+                                dropOpt = 0.85; // Amélioration faciale forte
+                                dropPess = 1.05; 
+                                expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique. En baissant le bid, vous délaissez la qualité pour le volume (Spray & Pray). Vous saturez l'audience de cookies à bas coût. Résultat : vous capturez l'attribution sur des conversions organiques ou multi-touch. Le CPA facial s'effondre (c'est brillant sur Excel), mais la valeur incrémentale est quasi-nulle.`;
                               } else if (isMidView) {
-                                // CAS 2 : Standard (1-3j View)
-                                // Equilibre fragile.
+                                // CAS 2 : STANDARD (1j View)
                                 dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5)); 
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
-                                expertExplanation = `⚠️ DÉCROCHAGE D'INTENTION : Avec une fenêtre courte (${attrView}j), vous ne pouvez pas compter uniquement sur l'organique. En baissant le bid sur l'Open Web, vous perdez les enchères sur les profils "In-Market" (identifiés par tous les DSP). Votre Win-Rate sur les utilisateurs intentionnistes va chuter, dégradant le CPA malgré un CPM plus bas.`;
+                                expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus. Vous devez gagner le "Last Look" sur les utilisateurs In-Market. En baissant le bid, vous perdez les enchères face aux concurrents qui utilisent des stratégies "Maximize Conversions". Votre Win-Rate sur les prospects chauds va chuter, dégradant le CPA réel.`;
                               } else {
-                                // CAS 3 : Strict (Click Only ou <24h)
-                                // Suicide algorithmique
+                                // CAS 3 : STRICT (Click / 0h)
                                 dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5)); 
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
-                                expertExplanation = `🛑 "CLICK-ONLY" DEATH SPIRAL : En attribution stricte (Click ou 0h View), la seule métrique qui compte est l'engagement immédiat. Baisser le bid vous exclut des formats visibles (ATF) et des contextes premium. Sans visibilité, pas de clic. Sans clic, pas de conversion. L'algorithme d'achat va s'arrêter faute de données.`;
+                                expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus. Vous êtes nu face à la réalité du marché. Baisser le bid est suicidaire : vous disparaissez des emplacements 'Above the Fold' nécessaires pour déclencher le clic d'impulsion. L'algo de bidding va s'arrêter net.`;
                               }
                             } else { // Hausse du Bid
                               if (isStrictClick) {
-                                dropOpt = 1 - (priceDrop * 1.8); // Gros boost
+                                dropOpt = 1 - (priceDrop * 1.8); 
                                 dropPess = 1 - (priceDrop * 0.9);
                                 expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable. Vous achetez de la 'Part de Voix' sur les meilleurs emplacements pour maximiser le CTR et le CVR immédiat. C'est du 'Pay-to-Play' pour la performance.";
                               } else {
                                 dropOpt = 1 - (priceDrop * 1.3);
                                 dropPess = 1 - (priceDrop * 0.7);
-                                expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous permettez au Smart Bidding d'aller chercher les 5% d'utilisateurs les plus chers mais qui convertissent vraiment (High Intent), inaccessibles avec un bid moyen.";
+                                expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding. Il pourra enfin s'aligner sur les enchères à très haute probabilité de conversion (Top 5% Users) qui sont inaccessibles avec un bid moyen.";
                               }
                             }
                             break;
 
                           case "CPV": // Coût Par Visite (Traffic)
-                            // La fenêtre Post-View importe peu pour une visite (il faut un clic).
-                            // C'est la fenêtre Post-Click qui détermine si on compte les retours.
+                            // En CPV, la fenêtre Post-View ne sert à rien (une visite = clic + load).
+                            // La fenêtre Post-Click compte peu pour le junk traffic (rebond immédiat).
                             if (priceDrop >= 0) { // Baisse Bid
                                 if (attrClick > 7) {
-                                    // Fenêtre clic longue : on peut espérer des retours
                                     dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                    expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité (Rebond immédiat). Cependant, avec une fenêtre d'attribution large de ${attrClick} jours, vous espérez qu'un utilisateur "Fat Finger" revienne plus tard. C'est un pari risqué sur la mémorisation d'une impression non-vue.`;
+                                    expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité (Rebond immédiat). Avec 30j de post-click, vous espérez un retour ultérieur, mais c'est un pari risqué sur des utilisateurs qui n'ont probablement même pas vu votre marque (clic accidentel).`;
                                 } else {
-                                    // Fenêtre clic courte (Standard Visit)
                                     dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8)); 
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
-                                    expertExplanation = `📉 JUNK TRAFFIC (Fat Fingers) : Le CPV est impitoyable sur l'Open Web. Un bid faible (< 2€) vous expose à 90% aux applications mobiles "Gaming/Utility" où les clics sont accidentels. L'utilisateur ferme la page avant le chargement (Landing Rate < 10%). Votre CPV va exploser mathématiquement.`;
+                                    expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge. Sur l'Open Web, un bid < 2€ vous envoie dans les 'Ghettos In-App' (Jeux, Utilitaires). Le clic est technique (Fat Finger), la visite est inexistante (Landing Rate < 10%). Votre CPV va exploser mathématiquement.`;
                                 }
                             } else { // Hausse Bid
                               dropOpt = 1 - (priceDrop * 1.4);
                               dropPess = 1 - (priceDrop * 0.8);
-                              expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous sortez de la 'Long Tail' in-app pour accéder aux inventaires Web Mobile et Desktop (News, Blogs). Le temps de chargement est plus rapide, l'utilisateur est attentif. Le Landing Rate passe de 20% à 70%, rentabilisant largement la hausse du CPC.";
+                              expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible sur des contextes éditoriaux (News, Blogs) et des connexions Wifi/4G+. Le temps de chargement est rapide, l'utilisateur est attentif. Le Landing Rate passe de 20% à 70%, rentabilisant largement la hausse du CPC.";
                             }
                             break;
 
