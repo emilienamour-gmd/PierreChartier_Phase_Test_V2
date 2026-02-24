@@ -122,7 +122,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
-    // Safety check: ensure values are numbers
+    // Safety check
     const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
     const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
     const availableSpend = Math.max(0, totalSpend - lockedSpend);
@@ -165,6 +165,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       if (!lockedLines.has(li.id)) {
         const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+        // Smoothing
         newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
       }
       
