@@ -18,6 +18,11 @@ export function Auth() {
     try {
       if (isLogin) {
         await login(username, password);
+        
+        // 👇 ON ACTIVE LE DRAPEAU "INTRO" 👇
+        sessionStorage.setItem("showIntroVideo", "true");
+        
+        // On recharge la page pour entrer dans l'app
         window.location.reload();
       } else {
         await register(username, password);
