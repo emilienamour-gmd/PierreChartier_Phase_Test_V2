@@ -6,26 +6,27 @@ export function IntroVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // On vérifie le drapeau
+    // 1. On vérifie le signal
     const shouldShow = sessionStorage.getItem("showIntroVideo");
 
     if (shouldShow === "true") {
       setIsVisible(true);
-      // On nettoie tout de suite pour ne pas le rejouer plus tard
       sessionStorage.removeItem("showIntroVideo");
 
-      // On tente de jouer la vidéo
+      // 2. On tente de jouer la vidéo avec le son
       if (videoRef.current) {
         videoRef.current.volume = 1.0; // Volume Max
-        videoRef.current.play().catch(err => console.error("Erreur lecture:", err));
+        videoRef.current.play().catch((err) => {
+          console.error("Erreur lecture auto:", err);
+        });
       }
 
-      // Timer pour le fondu (3.5s)
+      // 3. Timer pour le fondu (3.5s)
       const fadeTimer = setTimeout(() => {
         setIsFading(true);
       }, 3500);
 
-      // Timer pour la suppression (4.5s)
+      // 4. Timer pour la suppression totale (4.5s)
       const removeTimer = setTimeout(() => {
         setIsVisible(false);
       }, 4500);
@@ -47,9 +48,9 @@ export function IntroVideo() {
         left: 0,
         width: "100vw",
         height: "100vh",
-        zIndex: 9999,
+        zIndex: 9999, // Au-dessus de tout
         backgroundColor: "black",
-        transition: "opacity 1s ease-out",
+        transition: "opacity 1s ease-out", // Effet de fondu
         opacity: isFading ? 0 : 1,
         display: "flex",
         alignItems: "center",
@@ -57,12 +58,13 @@ export function IntroVideo() {
         pointerEvents: "none", // Permet de cliquer à travers pendant le fondu
       }}
     >
+      {/* 👇 LE NOM EXACT DE TON FICHIER ICI 👇 */}
       <video
         ref={videoRef}
-        src="/PierreChartier.mp4" // Assure-toi que c'est le bon nom !
+        src="/PierreChartier.mp4" 
         autoPlay
         playsInline
-        // Pas de "muted" ici, car on veut le son !
+        // Pas de "muted" ici pour avoir le son !
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
     </div>
