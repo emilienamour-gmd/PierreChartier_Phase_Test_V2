@@ -545,7 +545,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             </div>
                             
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">Impact KPI : {project.kpiType}</div>
+                              {/* MODIFICATION ICI : KPI EN GRAS */}
+                              <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                                IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
+                              </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
                                 <span className="text-sm font-bold text-emerald-600">
@@ -653,7 +656,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             </div>
                             
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">Impact KPI : {project.kpiType}</div>
+                              {/* MODIFICATION ICI : KPI EN GRAS */}
+                              <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                                IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
+                              </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
                                 <span className="text-sm font-bold text-emerald-600">
