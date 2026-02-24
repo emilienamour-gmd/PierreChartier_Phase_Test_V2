@@ -640,34 +640,45 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                           case "CPA":
                           case "CPL":
                             if (priceDrop >= 0) { // Baisse du Bid
-                              if (hasViewWindow && attrView >= 1) { // 1 Jour ou +
-                                // Scénario Cookie Dropping (ex Bombing)
+                              if (hasViewWindow && attrView > 3) { // 3 Jours ou + (Attribution Large)
+                                // Scénario Cookie Dropping (Risque de cannibalisation)
                                 dropOpt = 0.95; // Le CPA facial baisse
                                 dropPess = 1.1; 
-                                expertExplanation = `🍪 COOKIE DROPPING (Fenêtre View ${attrView}J) : En baissant le bid, vous achetez massivement de l'inventaire 'Cheap'. Avec une fenêtre Post-View ouverte d'au moins 24h, vous captez des conversions organiques. Le CPA facial baisse, mais l'incrémentalité est faible.`;
+                                expertExplanation = `🍪 COOKIE DROPPING (Fenêtre View ${attrView}J) : Avec une fenêtre Post-View étendue (>3j), vous "attrapez" beaucoup de conversions naturelles. En baissant le bid, vous achetez du volume "Cheap" (Bas de page) pour déposer des cookies. Le CPA facial va baisser, mais c'est une illusion : l'incrémentalité est quasi-nulle. Attention à la cannibalisation du trafic organique.`;
+                              } else if (hasViewWindow && attrView >= 1) { // 1 à 3 Jours (Standard)
+                                // Scénario Standard
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5)); 
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
+                                expertExplanation = `📉 COMPÉTITION (Standard View ${attrView}J) : En Open Web, les profils intentionnistes sont chers. En baissant le bid, vous perdez les enchères sur les utilisateurs "chauds". Même avec 24h de post-view, vous risquez de perdre le "Last Touch" au profit d'un concurrent qui bid plus fort.`;
                               } else {
-                                // Scénario Strict (Click ou View courte)
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); 
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 4.0));
-                                expertExplanation = `📉 SMART BIDDING BRIDÉ (Attribution Stricte) : Sans le filet de sécurité du Post-View, vous ne comptez que sur l'intention réelle. En baissant le bid, vous perdez les utilisateurs intentionnistes.`;
+                                // Scénario Strict (Click ou View < 24h)
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 3.0)); 
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
+                                expertExplanation = `🛑 DANGER ABSOLU (Attribution Stricte) : Sans filet de sécurité Post-View long, vous ne convertissez que sur l'interaction directe. Baisser le bid tue votre visibilité sur les inventaires Premium où l'utilisateur est engagé. L'algo de bidding va s'effondrer faute de signaux.`;
                               }
                             } else { // Hausse du Bid
-                              dropOpt = 1 - (priceDrop * 1.5);
-                              dropPess = 1 - (priceDrop * 0.8);
-                              expertExplanation = "🚀 QUALITÉ & INTENTION : En augmentant le Bid, vous allez chercher des utilisateurs plus chers mais réellement engagés (Meilleur CVR). C'est la seule stratégie viable en attribution 'Click-Only'.";
+                              if (!hasViewWindow || attrView < 1) {
+                                dropOpt = 1 - (priceDrop * 1.8); // Gros boost en Click-Only
+                                dropPess = 1 - (priceDrop * 0.9);
+                                expertExplanation = "🚀 SNIPER APPROACH : En attribution 'Click-Only', la seule voie est la qualité. Augmenter le bid permet de gagner les impressions 'Above The Fold' à fort taux de clic et de conversion. C'est le prix à payer pour de la performance réelle.";
+                              } else {
+                                dropOpt = 1 - (priceDrop * 1.3);
+                                dropPess = 1 - (priceDrop * 0.7);
+                                expertExplanation = "🎯 INTENTION : Payer plus cher permet de toucher l'utilisateur au moment de sa navigation active (Contextuel Fort). Cela améliore le CVR (Taux de conversion) et justifie le CPM élevé.";
+                              }
                             }
                             break;
 
                           case "CPV": // Coût Par Visite (Traffic)
                             if (priceDrop >= 0) { // Baisse Bid
-                              // En CPV, le Post-View compte peu.
+                              // En CPV, le Post-View ne "sauve" pas la mise. Une visite c'est un clic + load.
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); 
                               dropPess = Math.max(0.1, 1 - (priceDrop * 4.5));
-                              expertExplanation = `📉 ROBOTS & FAT FINGERS : Le CPV est un KPI de 'Post-Click'. Sur l'Open Web, un bid faible vous expose aux clics accidentels (Mobile Apps) et aux Bots qui ne chargent jamais la page. Votre CPV va exploser.`;
+                              expertExplanation = `📉 QUALITÉ DU CLIC (Fat Fingers) : Le CPV est impitoyable. Sur l'Open Web, un bid bas vous envoie sur des apps Gaming/Utility (Fat Fingers) ou des sites MFA. Vous aurez des clics, mais 80% de rebond avant le chargement de la page. Votre CPV va exploser.`;
                             } else { // Hausse Bid
-                              dropOpt = 1 - (priceDrop * 1.3);
-                              dropPess = 1 - (priceDrop * 0.7);
-                              expertExplanation = "🚀 LANDING RATE : Un CPM plus élevé permet de cibler des contextes Desktop et Haut Débit. Le ratio Clic/Visite sera maximisé.";
+                              dropOpt = 1 - (priceDrop * 1.4);
+                              dropPess = 1 - (priceDrop * 0.8);
+                              expertExplanation = "🚀 LANDING RATE : En augmentant le bid, vous ciblez des environnements Desktop/News et des connexions Wifi/4G+. L'utilisateur est en mode 'Lecture'. Le ratio Clic/Visite sera maximisé, compensant la hausse du CPC.";
                             }
                             break;
 
@@ -872,182 +883,49 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="px-6 py-4 font-bold">Line Item</th>
-                          <th className="px-6 py-4 font-bold">Line Item</th>
-                          <th className="px-6 py-4 font-bold">Dépense Jour</th>
-                          <th className="px-6 py-4 font-bold">CPM Revenu Actuel</th>
-                          <th className="px-6 py-4 font-bold">Marge Actuelle %</th>
-                          <th className="px-6 py-4 font-bold">KPI Actuel ({project.kpiType})</th>
-                          <th className="px-6 py-4 font-bold"></th>
+                          <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
+                          <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                          <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
+                          <th className="px-6 py-4 font-bold">KPI Actuel</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {project.lineItems.map((li, idx) => (
-                          <tr key={li.id} className="hover:bg-gray-50 transition-colors bg-white">
-                            <td className="px-6 py-3 flex items-center gap-2">
-                              <button 
-                                onClick={() => toggleLock(li.id)}
-                                className={cn("p-1.5 rounded-md transition-colors", lockedLines.has(li.id) ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
-                                title={lockedLines.has(li.id) ? "Budget verrouillé" : "Budget modifiable"}
-                              >
-                                {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                              </button>
-                              <input 
-                                type="text" 
-                                className="w-full bg-transparent border-none focus:ring-0 p-0 text-sm font-medium text-gray-900"
-                                value={li.name}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].name = e.target.value;
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" 
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.spend}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].spend = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.1"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.cpmRevenue}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].cpmRevenue = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.5"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.marginPct}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].marginPct = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.01"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.kpiActual}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].kpiActual = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <button 
-                                onClick={() => {
-                                  const newItems = project.lineItems.filter((_, i) => i !== idx);
-                                  updateField("lineItems", newItems);
-                                }}
-                                className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {proposedOptimizations.map((li) => {
+                          const original = project.lineItems.find(o => o.id === li.id);
+                          const spendDiff = original ? li.spend - original.spend : 0;
+                          const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                          
+                          return (
+                            <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
+                              <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
+                                  {spendDiff !== 0 && (
+                                    <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                      ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
+                                  {marginDiff !== 0 && (
+                                    <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                      ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-                  <button 
-                    onClick={() => {
-                      updateField("lineItems", [
-                        ...project.lineItems, 
-                        { id: Date.now().toString(), name: "Nouvelle Ligne", spend: 0, cpmRevenue: project.cpmRevenueActual, marginPct: currentMarginPctCalc, kpiActual: project.actualKpi }
-                      ]);
-                    }}
-                    className="text-sm text-blue-600 font-bold hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-lg transition-colors"
-                  >
-                    + Ajouter une ligne
-                  </button>
-
-                  {proposedOptimizations && (
-                    <div className="mt-8 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-bold text-blue-900">Propositions d'Optimisation</h3>
-                        <div className="flex gap-3">
-                          <button 
-                            onClick={() => setProposedOptimizations(null)}
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                          >
-                            Annuler
-                          </button>
-                          <button 
-                            onClick={applyOptimizations}
-                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Appliquer les changements
-                          </button>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
-                            <tr>
-                              <th className="px-6 py-4 font-bold">Line Item</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
-                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
-                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-blue-100">
-                            {proposedOptimizations.map((li) => {
-                              const original = project.lineItems.find(o => o.id === li.id);
-                              const spendDiff = original ? li.spend - original.spend : 0;
-                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
-                              
-                              return (
-                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
-                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
-                                      {spendDiff !== 0 && (
-                                        <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
-                                      {marginDiff !== 0 && (
-                                        <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
