@@ -6,30 +6,37 @@ export function IntroVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // 1. On vérifie le signal
+    // On vérifie le signal
     const shouldShow = sessionStorage.getItem("showIntroVideo");
 
     if (shouldShow === "true") {
       setIsVisible(true);
       sessionStorage.removeItem("showIntroVideo");
 
-      // 2. On tente de jouer la vidéo avec le son
-      if (videoRef.current) {
-        videoRef.current.volume = 1.0; // Volume Max
-        videoRef.current.play().catch((err) => {
-          console.error("Erreur lecture auto:", err);
-        });
-      }
+      // TENTATIVE DE LECTURE FORCÉE
+      const playVideo = async () => {
+        if (videoRef.current) {
+          try {
+            videoRef.current.volume = 1.0;
+            videoRef.current.currentTime = 0;
+            await videoRef.current.play();
+            console.log("Lecture vidéo démarrée avec succès");
+          } catch (err) {
+            console.error("Lecture bloquée par le navigateur:", err);
+            // Si bloqué, on réessaie en muet (mieux que rien)
+            if (videoRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.play();
+            }
+          }
+        }
+      };
 
-      // 3. Timer pour le fondu (3.5s)
-      const fadeTimer = setTimeout(() => {
-        setIsFading(true);
-      }, 3500);
+      playVideo();
 
-      // 4. Timer pour la suppression totale (4.5s)
-      const removeTimer = setTimeout(() => {
-        setIsVisible(false);
-      }, 4500);
+      // Timers
+      const fadeTimer = setTimeout(() => setIsFading(true), 3500);
+      const removeTimer = setTimeout(() => setIsVisible(false), 4500);
 
       return () => {
         clearTimeout(fadeTimer);
@@ -48,24 +55,27 @@ export function IntroVideo() {
         left: 0,
         width: "100vw",
         height: "100vh",
-        zIndex: 9999, // Au-dessus de tout
+        zIndex: 99999, // Z-index extrême
         backgroundColor: "black",
-        transition: "opacity 1s ease-out", // Effet de fondu
+        transition: "opacity 1s ease-out",
         opacity: isFading ? 0 : 1,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        pointerEvents: "none", // Permet de cliquer à travers pendant le fondu
+        pointerEvents: "none",
       }}
     >
-      {/* 👇 LE NOM EXACT DE TON FICHIER ICI 👇 */}
       <video
         ref={videoRef}
-        src="/PierreChartier.mp4" 
-        autoPlay
-        playsInline
-        // Pas de "muted" ici pour avoir le son !
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        src="/PierreChartier.mp4"
+        playsInline // Important pour mobile
+        preload="auto"
+        style={{ 
+          width: "100%", 
+          height: "100%", 
+          // 👇 C'est ça qui empêche le zoom !
+          objectFit: "contain" 
+        }}
       />
     </div>
   );
