@@ -22,8 +22,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
 
   // Fenêtres d'attribution en JOURS
-  const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
-  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour
+  const [attrClick, setAttrClick] = useState(7); 
+  const [attrView, setAttrView] = useState(1);   
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -55,8 +55,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     cpmCostActuelCalc = project.cpmRevenueActual * (1 - project.margeInput / 100);
   }
 
-  // Weighted averages from table
-  const totalSpendTable = project.lineItems.reduce((acc, li) => acc + li.spend, 0);
+  // Weighted averages
+  const totalSpendTable = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   let wMargin = currentMarginPctCalc;
   let wCpmRev = project.cpmRevenueActual;
   let wCpmCost = cpmCostActuelCalc;
@@ -122,9 +122,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
-    const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + li.spend, 0);
-    const totalSpend = project.lineItems.reduce((acc, li) => acc + li.spend, 0);
-    const availableSpend = totalSpend - lockedSpend;
+    // Safety check: ensure values are numbers
+    const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
+    const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
+    const availableSpend = Math.max(0, totalSpend - lockedSpend);
     
     const scoredItems = project.lineItems.map(li => {
       const safeActual = li.kpiActual > 0 ? li.kpiActual : 0.0001;
@@ -164,13 +165,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       if (!lockedLines.has(li.id)) {
         const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : li.spend;
+        // Smoothing to avoid drastic cuts
         newSpend = (theoreticalSpend * 0.7) + (li.spend * 0.3);
       }
       
       return { 
         id: li.id,
         name: li.name,
-        spend: Number(newSpend.toFixed(2)),
+        spend: isNaN(newSpend) ? 0 : Number(newSpend.toFixed(2)),
         cpmRevenue: li.cpmRevenue,
         marginPct: Number(newMargin.toFixed(2)),
         kpiActual: li.kpiActual
@@ -899,7 +901,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       <tbody className="divide-y divide-blue-100">
                         {proposedOptimizations.map((li) => {
                           const original = project.lineItems.find(o => o.id === li.id);
-                          const spendDiff = original ? li.spend - original.spend : 0;
+                          const spendDiff = original ? li.spend - (original.spend || 0) : 0;
                           const marginDiff = original ? li.marginPct - original.marginPct : 0;
                           
                           return (
