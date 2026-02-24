@@ -6,7 +6,7 @@ import { Portfolio } from "./components/Portfolio";
 import { MarketWatch } from "./components/MarketWatch";
 import { Settings } from "./components/Settings";
 import { Auth } from "./components/Auth";
-import { IntroVideo } from "./components/IntroVideo"; // ✅ Import de la vidéo
+import { IntroVideo } from "./components/IntroVideo";
 import { useProjectStore } from "./store/useProjectStore";
 import { useUserStore } from "./store/useUserStore";
 import { DEFAULT_PROJECT } from "./types";
@@ -15,10 +15,29 @@ import { Search, Bell, Layout, LogOut } from "lucide-react";
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
   
-  // Clé pour forcer le rafraîchissement sans recharger la page
-  const [updateKey, setUpdateKey] = useState(0);
+  // On utilise un état local pour l'utilisateur pour forcer la mise à jour
+  const { user: storeUser, isLoading, logout } = useUserStore();
+  const [localUser, setLocalUser] = useState(storeUser);
 
-  const { user, isLoading, logout } = useUserStore();
+  // Synchroniser l'état local avec le store au démarrage
+  useEffect(() => {
+    setLocalUser(storeUser);
+  }, [storeUser]);
+
+  // 👇 LA CORRECTION DU REFRESH 👇
+  useEffect(() => {
+    const handleLoginSuccess = () => {
+      console.log("Signal reçu ! Mise à jour forcée...");
+      // On va chercher l'utilisateur directement dans la boîte, sans passer par le Store
+      const saved = localStorage.getItem("userProfile");
+      if (saved) {
+        setLocalUser(JSON.parse(saved));
+      }
+    };
+
+    window.addEventListener("force-app-update", handleLoginSuccess);
+    return () => window.removeEventListener("force-app-update", handleLoginSuccess);
+  }, []);
 
   const {
     projects,
@@ -30,22 +49,10 @@ export default function App() {
     createNewProject,
   } = useProjectStore();
 
-  // 👇 MAGIE : On écoute le signal envoyé par Auth.tsx
-  useEffect(() => {
-    const handleLoginSuccess = () => {
-      setUpdateKey(prev => prev + 1); // On met à jour l'affichage instantanément
-    };
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
 
-    window.addEventListener("force-app-update", handleLoginSuccess);
-    return () => window.removeEventListener("force-app-update", handleLoginSuccess);
-  }, []);
-
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">Chargement...</div>;
-  }
-
-  // Si pas d'utilisateur, on affiche la page de connexion
-  if (!user) {
+  // On utilise localUser au lieu de user du store
+  if (!localUser) {
     return <Auth />;
   }
 
@@ -60,10 +67,9 @@ export default function App() {
   };
 
   return (
-    // La clé permet à React de savoir qu'il faut redessiner cette partie
-    <div key={updateKey} className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${user.theme}`}>
+    <div className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${localUser.theme}`}>
       
-      {/* 👇 VIDÉO AU PREMIER PLAN 👇 */}
+      {/* La vidéo se lance ici si le signal est présent */}
       <IntroVideo />
 
       <Sidebar
@@ -75,11 +81,10 @@ export default function App() {
         onSaveProject={(name) => saveProject({ ...activeProject, id: currentProject?.id || Date.now().toString(), name })}
         onDeleteProject={deleteProject}
         onCreateNew={createNewProject}
-        user={user}
+        user={localUser}
       />
       
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top Header */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center text-sm text-gray-500">
             <span className="text-gray-400">Dashboard</span>
@@ -107,30 +112,17 @@ export default function App() {
               <LogOut className="w-5 h-5" />
             </button>
             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">
-              {user.initials}
+              {localUser.initials}
             </div>
           </div>
         </header>
 
         <main className="flex-1 overflow-hidden">
-          {activeTab === "cockpit" && (
-            <CockpitYield 
-              project={activeProject} 
-              onChange={setCurrentProject} 
-            />
-          )}
-          {activeTab === "cycle" && (
-            <OptimizationCycle project={activeProject} />
-          )}
-          {activeTab === "portfolio" && (
-            <Portfolio projects={projects} />
-          )}
-          {activeTab === "market" && (
-            <MarketWatch currentCost={activeProject.cpmCostActuel} />
-          )}
-          {activeTab === "settings" && (
-            <Settings />
-          )}
+          {activeTab === "cockpit" && <CockpitYield project={activeProject} onChange={setCurrentProject} />}
+          {activeTab === "cycle" && <OptimizationCycle project={activeProject} />}
+          {activeTab === "portfolio" && <Portfolio projects={projects} />}
+          {activeTab === "market" && <MarketWatch currentCost={activeProject.cpmCostActuel} />}
+          {activeTab === "settings" && <Settings />}
         </main>
       </div>
     </div>
