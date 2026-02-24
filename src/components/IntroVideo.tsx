@@ -56,7 +56,7 @@ export function IntroVideo() {
     >
       <video
         ref={videoRef}
-        src="/intro.mp4"
+        src="/PierreChartier.mp4"
         autoPlay
         playsInline
         // ❌ J'AI SUPPRIMÉ LA LIGNE "muted" POUR AVOIR LE SON
