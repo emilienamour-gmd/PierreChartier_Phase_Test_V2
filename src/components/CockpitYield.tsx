@@ -872,6 +872,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="px-6 py-4 font-bold">Line Item</th>
+                          <th className="px-6 py-4 font-bold">Line Item</th>
                           <th className="px-6 py-4 font-bold">Dépense Jour</th>
                           <th className="px-6 py-4 font-bold">CPM Revenu Actuel</th>
                           <th className="px-6 py-4 font-bold">Marge Actuelle %</th>
@@ -1022,7 +1023,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
                                       {spendDiff !== 0 && (
                                         <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)})
+                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
                                         </span>
                                       )}
                                     </div>
