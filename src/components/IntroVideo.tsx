@@ -6,26 +6,29 @@ export function IntroVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // On vérifie le drapeau
     const shouldShow = sessionStorage.getItem("showIntroVideo");
 
     if (shouldShow === "true") {
       setIsVisible(true);
+      // On nettoie tout de suite pour ne pas le rejouer plus tard
       sessionStorage.removeItem("showIntroVideo");
 
-      // On essaie de lancer la vidéo avec le son
+      // On tente de jouer la vidéo
       if (videoRef.current) {
-        videoRef.current.volume = 1.0; // Volume max
-        videoRef.current.play().catch((e) => {
-          // ⚠️ Si le navigateur bloque le son, on log l'erreur
-          console.log("Lecture auto bloquée par le navigateur:", e);
-        });
+        videoRef.current.volume = 1.0; // Volume Max
+        videoRef.current.play().catch(err => console.error("Erreur lecture:", err));
       }
 
       // Timer pour le fondu (3.5s)
-      const fadeTimer = setTimeout(() => setIsFading(true), 3500);
-      
-      // Timer pour suppression (4.5s)
-      const removeTimer = setTimeout(() => setIsVisible(false), 4500);
+      const fadeTimer = setTimeout(() => {
+        setIsFading(true);
+      }, 3500);
+
+      // Timer pour la suppression (4.5s)
+      const removeTimer = setTimeout(() => {
+        setIsVisible(false);
+      }, 4500);
 
       return () => {
         clearTimeout(fadeTimer);
@@ -51,15 +54,15 @@ export function IntroVideo() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        pointerEvents: "none",
+        pointerEvents: "none", // Permet de cliquer à travers pendant le fondu
       }}
     >
       <video
         ref={videoRef}
-        src="/PierreChartier.mp4"
+        src="/PierreChartier.mp4" // Assure-toi que c'est le bon nom !
         autoPlay
         playsInline
-        // ❌ J'AI SUPPRIMÉ LA LIGNE "muted" POUR AVOIR LE SON
+        // Pas de "muted" ici, car on veut le son !
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
     </div>
