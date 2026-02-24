@@ -165,6 +165,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       if (!lockedLines.has(li.id)) {
         const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+        // Smoothing
         newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
       }
       
@@ -204,7 +205,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 1. Campagne */}
         <div className="space-y-4">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">1. Campagne</h3>
+          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
+          <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
             <select 
@@ -255,7 +257,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 2. Finance */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">2. Finance</h3>
+          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
+          <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">2. Finance</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Vendu Cap ({currSym})</label>
             <input 
@@ -278,7 +281,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 3. Achat */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">3. Achat</h3>
+          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
+          <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Cost ({currSym})</label>
@@ -315,7 +319,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 4. KPI */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">4. KPI Objectif</h3>
+          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
+          <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">4. KPI Objectif</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">Type de KPI</label>
             <select 
@@ -1037,11 +1042,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               return (
                                 <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
                                   <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
+                                      <span className="text-gray-900 font-bold">
+                                        {li.spend.toFixed(2)} {currSym}
+                                      </span>
                                       {spendDiff !== 0 && (
-                                        <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                        <span className={cn("text-xs font-medium whitespace-nowrap", spendDiff > 0 ? "text-emerald-600" : "text-red-600")}>
                                           ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
                                         </span>
                                       )}
