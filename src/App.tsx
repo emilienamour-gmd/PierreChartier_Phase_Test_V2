@@ -6,6 +6,7 @@ import { Portfolio } from "./components/Portfolio";
 import { MarketWatch } from "./components/MarketWatch";
 import { Settings } from "./components/Settings";
 import { Auth } from "./components/Auth";
+import { IntroVideo } from "./components/IntroVideo";
 import { useProjectStore } from "./store/useProjectStore";
 import { useUserStore } from "./store/useUserStore";
 import { DEFAULT_PROJECT } from "./types";
