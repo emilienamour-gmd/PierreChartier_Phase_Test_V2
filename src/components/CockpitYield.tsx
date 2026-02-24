@@ -545,19 +545,18 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             </div>
                             
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {/* MODIFICATION ICI : KPI EN GRAS */}
                               <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
                                 IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
                               </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                <span className="text-sm font-bold text-emerald-600">
+                                <span className={cn("text-sm font-bold", (isFin ? kpiOpt1 <= project.actualKpi : kpiOpt1 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
                                   {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                <span className="text-sm font-bold text-red-600">
+                                <span className={cn("text-sm font-bold", (isFin ? kpiPess1 <= project.actualKpi : kpiPess1 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
                                   {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
@@ -612,8 +611,20 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             }
                             break;
 
-                          case "CPCV":
-                          case "CPV":
+                          case "CPV": // Coût Par Visite (Trafic)
+                            if (priceDrop >= 0) { // Baisse Bid
+                              // dropOpt < 1 -> KPI (Coût) Augmente
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 2.0)); 
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 3.5));
+                              expertExplanation = "📉 FAUX CLICS & BOUNCE : Sur l'Open Web, un bid faible attire les 'Fat Fingers' (clics accidentels sur mobile) et les Bots. Vous aurez des clics pas chers, mais personne n'arrivera sur la Landing Page (Drop-off massif). Votre Coût Par Visite va exploser.";
+                            } else { // Hausse Bid
+                              dropOpt = 1 - (priceDrop * 1.2);
+                              dropPess = 1 - (priceDrop * 0.6);
+                              expertExplanation = "🚀 LANDING RATE : Un CPM plus élevé permet de cibler des contextes Desktop et Haut Débit. L'utilisateur a une meilleure connexion et une vraie intention de navigation. Le ratio Clic/Visite sera maximisé.";
+                            }
+                            break;
+
+                          case "CPCV": // Cost Per Completed View (Vidéo)
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
