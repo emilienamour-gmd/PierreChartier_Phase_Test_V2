@@ -34,7 +34,7 @@ export default function App() {
     const timer = setTimeout(() => {
       console.log("Sécurité : Temps écoulé, affichage forcé du site.");
       setShowIntro(false);
-    }, 2000); // 4000ms = 4 secondes
+    }, 3000); // 4000ms = 4 secondes
 
     return () => clearTimeout(timer);
   }, []);
