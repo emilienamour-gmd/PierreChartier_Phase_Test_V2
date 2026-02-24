@@ -21,9 +21,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
 
-  // Fenêtres d'attribution en JOURS (Standard DSP)
+  // Fenêtres d'attribution en JOURS
   const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
-  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour (Standard)
+  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -559,9 +559,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
-                        const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
-                        const exceeds = newRevOpt1 > project.cpmSoldCap;
                         const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
+                        const exceeds = newRevOpt1 > project.cpmSoldCap;
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
                         
                         let kpiOpt1 = 0, kpiPess1 = 0;
@@ -633,8 +632,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let dropPess = 1;
                         let expertExplanation = "";
                         
-                        // --- CERVEAU TRADER EXPERT v4.0 (Masterclass) ---
-                        // ANALYSE DE L'ATTRIBUTION ET DU CONTEXTE
+                        // --- CERVEAU TRADER EXPERT v4.0 (Correction Variable Reference) ---
                         const hasViewWindow = attrView > 0;
                         const isStrictClick = attrView === 0;
                         const isLongView = attrView >= 2; // > 1 jour
@@ -646,9 +644,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             if (priceDrop >= 0) { // Baisse du Bid
                               if (isLongView) {
                                 // CAS 1 : ARBITRAGE (Cookie Dropping)
-                                dropOpt = 0.85; // Amélioration faciale forte
+                                dropOpt = 0.85; 
                                 dropPess = 1.05; 
-                                expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique. En baissant le bid, vous délaissez la qualité pour le volume (Spray & Pray). Vous saturez l'audience de cookies à bas coût. Résultat : vous capturez l'attribution sur des conversions organiques ou multi-touch. Le CPA facial s'effondre (c'est brillant sur Excel), mais la valeur incrémentale est quasi-nulle.`;
+                                expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique. En baissant le bid, vous délaissez la qualité pour le volume (Spray & Pray). Vous saturez l'audience de cookies à bas coût. Résultat : vous capturez l'attribution sur des conversions organiques. Le CPA facial s'effondre (c'est brillant sur Excel), mais la valeur incrémentale est quasi-nulle.`;
                               } else if (isMidView) {
                                 // CAS 2 : STANDARD (1j View)
                                 dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5)); 
@@ -673,14 +671,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             }
                             break;
 
-                          case "CPV": // Coût Par Visite (Traffic)
-                            // En CPV, la fenêtre Post-View ne sert à rien (une visite = clic + load).
-                            // La fenêtre Post-Click compte peu pour le junk traffic (rebond immédiat).
+                          case "CPV": // Coût Par Visite
                             if (priceDrop >= 0) { // Baisse Bid
                                 if (attrClick > 7) {
                                     dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                    expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité (Rebond immédiat). Avec 30j de post-click, vous espérez un retour ultérieur, mais c'est un pari risqué sur des utilisateurs qui n'ont probablement même pas vu votre marque (clic accidentel).`;
+                                    expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité (Rebond immédiat). Avec une fenêtre d'attribution large de ${attrClick} jours, vous espérez un retour ultérieur via SEO/Direct, mais c'est un pari risqué sur la mémorisation d'une visite avortée.`;
                                 } else {
                                     dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8)); 
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
