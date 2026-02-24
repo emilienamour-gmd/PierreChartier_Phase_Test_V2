@@ -18,7 +18,6 @@ export function Auth() {
     try {
       if (isLogin) {
         await login(username, password);
-        // 👇 C'est cette ligne qui va rafraîchir la page automatiquement
         window.location.reload();
       } else {
         await register(username, password);
