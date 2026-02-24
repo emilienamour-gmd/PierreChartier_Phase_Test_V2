@@ -4,7 +4,7 @@ import { cn } from "../utils/cn";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -20,6 +20,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
+
+  // Fenêtres d'attribution en JOURS (Standard DSP)
+  const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
+  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour (Standard)
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -323,6 +327,38 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
               ))}
             </select>
           </div>
+
+          {/* FENÊTRES D'ATTRIBUTION (EN JOURS) */}
+          {(project.kpiType === "CPA" || project.kpiType === "CPV" || project.kpiType === "CPL") && (
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 space-y-3">
+              <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Fenêtres d'Attribution</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
+                      <MousePointer2 className="w-3 h-3"/> Post-Clic (J)
+                    </label>
+                    <input 
+                      type="number" min="0" max="30"
+                      className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
+                      value={attrClick}
+                      onChange={(e) => setAttrClick(Number(e.target.value))}
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
+                      <Clock className="w-3 h-3"/> Post-View (J)
+                    </label>
+                    <input 
+                      type="number" min="0" max="30"
+                      className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
+                      value={attrView}
+                      onChange={(e) => setAttrView(Number(e.target.value))}
+                    />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1.5 font-medium">Objectif</label>
@@ -550,13 +586,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiOpt1 <= project.actualKpi : kpiOpt1 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
+                                <span className="text-sm font-bold text-emerald-600">
                                   {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiPess1 <= project.actualKpi : kpiPess1 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
+                                <span className="text-sm font-bold text-red-600">
                                   {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
@@ -597,42 +633,53 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let expertExplanation = "";
                         
                         // --- CERVEAU TRADER OPEN WEB (RTB ONLY) ---
+                        // ANALYSE DE L'ATTRIBUTION (Impact sur la stratégie de Bid)
+                        const hasViewWindow = attrView > 0;
+                        
                         switch(project.kpiType) {
                           case "CPA":
                           case "CPL":
                             if (priceDrop >= 0) { // Baisse du Bid
-                              dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); // Impact violent sur l'Open
-                              dropPess = Math.max(0.1, 1 - (priceDrop * 4.0));
-                              expertExplanation = "📉 SMART BIDDING BRIDÉ : En Open Auction, les cookies à forte intention d'achat sont détectés par tous les DSP. La pression concurrentielle sur ces utilisateurs est énorme. En baissant votre Max Bid, vous empêchez l'algo de 'sniper' ces conversions. Vous ne gagnerez plus que des impressions 'low intent' inutiles.";
+                              if (hasViewWindow && attrView >= 1) { // 1 Jour ou +
+                                // Scénario Cookie Dropping (ex Bombing)
+                                dropOpt = 0.95; // Le CPA facial baisse
+                                dropPess = 1.1; 
+                                expertExplanation = `🍪 COOKIE DROPPING (Fenêtre View ${attrView}J) : En baissant le bid, vous achetez massivement de l'inventaire 'Cheap'. Avec une fenêtre Post-View ouverte d'au moins 24h, vous captez des conversions organiques. Le CPA facial baisse, mais l'incrémentalité est faible.`;
+                              } else {
+                                // Scénario Strict (Click ou View courte)
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); 
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 4.0));
+                                expertExplanation = `📉 SMART BIDDING BRIDÉ (Attribution Stricte) : Sans le filet de sécurité du Post-View, vous ne comptez que sur l'intention réelle. En baissant le bid, vous perdez les utilisateurs intentionnistes.`;
+                              }
                             } else { // Hausse du Bid
                               dropOpt = 1 - (priceDrop * 1.5);
                               dropPess = 1 - (priceDrop * 0.8);
-                              expertExplanation = "🚀 HEADROOM ALGO : En augmentant votre plafond d'enchère, vous donnez de l'air au Smart Bidding. Il pourra aller chercher les 5% d'utilisateurs qui convertissent vraiment, même si le Clearing Price est élevé ponctuellement.";
+                              expertExplanation = "🚀 QUALITÉ & INTENTION : En augmentant le Bid, vous allez chercher des utilisateurs plus chers mais réellement engagés (Meilleur CVR). C'est la seule stratégie viable en attribution 'Click-Only'.";
                             }
                             break;
 
-                          case "CPV": // Coût Par Visite (Trafic)
+                          case "CPV": // Coût Par Visite (Traffic)
                             if (priceDrop >= 0) { // Baisse Bid
-                              // dropOpt < 1 -> KPI (Coût) Augmente
-                              dropOpt = Math.max(0.1, 1 - (priceDrop * 2.0)); 
-                              dropPess = Math.max(0.1, 1 - (priceDrop * 3.5));
-                              expertExplanation = "📉 FAUX CLICS & BOUNCE : Sur l'Open Web, un bid faible attire les 'Fat Fingers' (clics accidentels sur mobile) et les Bots. Vous aurez des clics pas chers, mais personne n'arrivera sur la Landing Page (Drop-off massif). Votre Coût Par Visite va exploser.";
+                              // En CPV, le Post-View compte peu.
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); 
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 4.5));
+                              expertExplanation = `📉 ROBOTS & FAT FINGERS : Le CPV est un KPI de 'Post-Click'. Sur l'Open Web, un bid faible vous expose aux clics accidentels (Mobile Apps) et aux Bots qui ne chargent jamais la page. Votre CPV va exploser.`;
                             } else { // Hausse Bid
-                              dropOpt = 1 - (priceDrop * 1.2);
-                              dropPess = 1 - (priceDrop * 0.6);
-                              expertExplanation = "🚀 LANDING RATE : Un CPM plus élevé permet de cibler des contextes Desktop et Haut Débit. L'utilisateur a une meilleure connexion et une vraie intention de navigation. Le ratio Clic/Visite sera maximisé.";
+                              dropOpt = 1 - (priceDrop * 1.3);
+                              dropPess = 1 - (priceDrop * 0.7);
+                              expertExplanation = "🚀 LANDING RATE : Un CPM plus élevé permet de cibler des contextes Desktop et Haut Débit. Le ratio Clic/Visite sera maximisé.";
                             }
                             break;
 
-                          case "CPCV": // Cost Per Completed View (Vidéo)
+                          case "CPCV": // Cost Per Completed View
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                              expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream (Pre-roll sur contenu éditorial) a des Floor Prices SSP élevés. Si vous baissez le bid, vous passez mécaniquement sous ces floors. Vous serez relégué sur de l'In-Banner Video ou des formats interstitiels forcés où la complétion est artificielle ou nulle.";
+                              expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés. Si vous baissez le bid, vous serez relégué sur de l'In-Banner Video ou des formats interstitiels forcés où la complétion est artificielle.";
                             } else {
                               dropOpt = 1 - (priceDrop * 1.2);
                               dropPess = 1 - (priceDrop * 0.5);
-                              expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices des gros éditeurs News/Media pour accéder à leur inventaire In-Stream natif, garantissant une complétion naturelle.";
+                              expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices des gros éditeurs pour accéder à leur inventaire In-Stream natif.";
                             }
                             break;
 
@@ -641,35 +688,23 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
-                              expertExplanation = "👀 VISIBILITÉ OPEN WEB : Le CTR est corrélé à la position. En baissant le bid, vous perdez les enchères 'First Look' et les emplacements Haut de Page. Vous récupérez les restes : bas de page, sidebars, ou pire, les sites MFA (Made For Advertising) qui génèrent des clics accidentels de mauvaise qualité.";
+                              expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position. En baissant le bid, vous perdez les enchères 'First Look' et les emplacements Haut de Page.";
                             } else {
                               dropOpt = 1 - (priceDrop * 1.4);
                               dropPess = 1 - (priceDrop * 0.7);
-                              expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions pour les emplacements 970x250 ou 300x600 en haut de page, là où le CTR est le plus élevé organiquement.";
+                              expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions pour les emplacements 970x250 ou 300x600 en haut de page.";
                             }
                             break;
 
-                          case "Viewability":
-                            if (priceDrop >= 0) {
-                              dropOpt = Math.max(0.1, 1 - (priceDrop * 1.6));
-                              dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
-                              expertExplanation = "📉 JUNK INVENTORY : Les emplacements très visibles (Sticky, ATF) sont protégés par des prix planchers dynamiques par les SSP. En baissant le bid, vous n'achetez plus que le 'Remnant Inventory' (invendus) en bas de page, structurellement peu visible.";
-                            } else {
-                              dropOpt = 1 - (priceDrop * 1.1);
-                              dropPess = 1 - (priceDrop * 0.5);
-                              expertExplanation = "👁️ WIN-RATE QUALITÉ : Un CPM élevé permet de maintenir un Win-Rate décent quand vous appliquez des filtres Pre-Bid stricts (ex: IAS Viewability > 70%).";
-                            }
-                            break;
-
-                          default: // CPM (Volume pur)
-                            if (priceDrop >= 0) {
+                          default: // CPM/Viewability
+                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
-                              expertExplanation = "⚠️ RISQUE MFA : Sur l'Open Web, un CPM trop bas vous expose massivement aux sites MFA (Made For Advertising) et aux domaines de click-bait. Vous aurez du volume, mais sur des domaines de qualité médiocre.";
+                              expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose massivement aux sites MFA (Made For Advertising). Vous aurez du volume, mais sur des domaines de qualité médiocre.";
                             } else {
                               dropOpt = 1 - (priceDrop * 0.6);
                               dropPess = 1 - (priceDrop * 0.3);
-                              expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists d'éditeurs Premium sans être bloqué par leurs Floor Prices agressifs.";
+                              expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists d'éditeurs Premium sans être bloqué par leurs Floor Prices.";
                             }
                             break;
                         }
@@ -963,7 +998,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </div>
                       </div>
                       <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-                        <table className="w-full text-sm text-left font-mono">
+                        <table className="w-full text-sm text-left">
                           <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
                             <tr>
                               <th className="px-6 py-4 font-bold">Line Item</th>
@@ -984,7 +1019,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
                                   <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.spend.toFixed(2)}</span>
+                                      <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
                                       {spendDiff !== 0 && (
                                         <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
                                           ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)})
