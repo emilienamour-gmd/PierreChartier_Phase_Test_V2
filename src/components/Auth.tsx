@@ -17,13 +17,15 @@ export function Auth() {
 
     try {
       if (isLogin) {
+        // 1. On active le drapeau pour la vidéo
+        sessionStorage.setItem("showIntroVideo", "true");
+
+        // 2. On connecte l'utilisateur
         await login(username, password);
         
-        // 👇 ON ACTIVE LE DRAPEAU "INTRO" 👇
-        sessionStorage.setItem("showIntroVideo", "true");
+        // 3. ❌ ON NE RECHARGE PLUS LA PAGE !
+        // React va détecter le changement de "user" tout seul et afficher le dashboard + la vidéo
         
-        // On recharge la page pour entrer dans l'app
-        window.location.reload();
       } else {
         await register(username, password);
       }
