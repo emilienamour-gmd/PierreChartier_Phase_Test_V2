@@ -17,14 +17,13 @@ export function Auth() {
 
     try {
       if (isLogin) {
-        // 1. On prépare la vidéo
+        // 1. On active le drapeau pour la vidéo
         sessionStorage.setItem("showIntroVideo", "true");
 
-        // 2. On connecte l'utilisateur (ça met à jour le LocalStorage)
+        // 2. On connecte l'utilisateur
         await login(username, password);
         
-        // 3. 📢 LE SIGNAL MAGIQUE !
-        // On envoie un événement personnalisé pour dire à tout le site de se mettre à jour
+        // 3. 📢 ON ENVOIE LE SIGNAL (Pas de reload = Son activé !)
         window.dispatchEvent(new Event("force-app-update"));
         
       } else {
@@ -36,7 +35,6 @@ export function Auth() {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
