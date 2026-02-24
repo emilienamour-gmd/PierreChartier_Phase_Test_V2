@@ -14,41 +14,29 @@ import { Search, Bell, Layout, LogOut } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
-  
-  // On ajoute un état pour contrôler la vidéo depuis ici
   const [showIntro, setShowIntro] = useState(true);
 
-  // On utilise un état local pour l'utilisateur pour forcer la mise à jour
   const { user: storeUser, isLoading, logout } = useUserStore();
   const [localUser, setLocalUser] = useState(storeUser);
 
-  // Synchroniser l'état local avec le store au démarrage
   useEffect(() => {
     setLocalUser(storeUser);
   }, [storeUser]);
 
-  // 👇 SÉCURITÉ ANTI-BLOCAGE VIDÉO 👇
   useEffect(() => {
-    // Ce code force la disparition de la vidéo après 4 secondes
-    // même si elle a planté ou si le navigateur l'a bloquée.
     const timer = setTimeout(() => {
-      console.log("Sécurité : Temps écoulé, affichage forcé du site.");
       setShowIntro(false);
-    }, 3000); // 4000ms = 4 secondes
-
+    }, 4000); 
     return () => clearTimeout(timer);
   }, []);
 
-  // 👇 LA CORRECTION DU REFRESH 👇
   useEffect(() => {
     const handleLoginSuccess = () => {
-      console.log("Signal reçu ! Mise à jour forcée...");
       const saved = localStorage.getItem("userProfile");
       if (saved) {
         setLocalUser(JSON.parse(saved));
       }
     };
-
     window.addEventListener("force-app-update", handleLoginSuccess);
     return () => window.removeEventListener("force-app-update", handleLoginSuccess);
   }, []);
@@ -77,12 +65,12 @@ export default function App() {
     portfolio: "Portfolio & Performance",
     market: "Market Watch",
     settings: "Settings",
+    help: "Help Center", // Titre pour le header
   };
 
   return (
     <div className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${localUser.theme}`}>
       
-      {/* CORRECTION ICI : On affiche la vidéo seulement si showIntro est vrai */}
       {showIntro && <IntroVideo />}
 
       <Sidebar
@@ -136,6 +124,15 @@ export default function App() {
           {activeTab === "portfolio" && <Portfolio projects={projects} />}
           {activeTab === "market" && <MarketWatch currentCost={activeProject.cpmCostActuel} />}
           {activeTab === "settings" && <Settings />}
+          
+          {/* 👇 LA PAGE HELP CENTER 👇 */}
+          {activeTab === "help" && (
+            <div className="flex items-center justify-center h-full bg-white">
+              <h1 className="text-3xl font-bold text-gray-900">
+                Contactez Pierre Chartier
+              </h1>
+            </div>
+          )}
         </main>
       </div>
     </div>
