@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { CockpitYield } from "./components/CockpitYield";
 import { OptimizationCycle } from "./components/OptimizationCycle";
@@ -6,7 +6,7 @@ import { Portfolio } from "./components/Portfolio";
 import { MarketWatch } from "./components/MarketWatch";
 import { Settings } from "./components/Settings";
 import { Auth } from "./components/Auth";
-import { IntroVideo } from "./components/IntroVideo";
+import { IntroVideo } from "./components/IntroVideo"; // ✅ Import de la vidéo
 import { useProjectStore } from "./store/useProjectStore";
 import { useUserStore } from "./store/useUserStore";
 import { DEFAULT_PROJECT } from "./types";
@@ -15,6 +15,9 @@ import { Search, Bell, Layout, LogOut } from "lucide-react";
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
   
+  // Clé pour forcer le rafraîchissement sans recharger la page
+  const [updateKey, setUpdateKey] = useState(0);
+
   const { user, isLoading, logout } = useUserStore();
 
   const {
@@ -27,10 +30,21 @@ export default function App() {
     createNewProject,
   } = useProjectStore();
 
+  // 👇 MAGIE : On écoute le signal envoyé par Auth.tsx
+  useEffect(() => {
+    const handleLoginSuccess = () => {
+      setUpdateKey(prev => prev + 1); // On met à jour l'affichage instantanément
+    };
+
+    window.addEventListener("force-app-update", handleLoginSuccess);
+    return () => window.removeEventListener("force-app-update", handleLoginSuccess);
+  }, []);
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">Chargement...</div>;
   }
 
+  // Si pas d'utilisateur, on affiche la page de connexion
   if (!user) {
     return <Auth />;
   }
@@ -46,7 +60,12 @@ export default function App() {
   };
 
   return (
-    <div className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${user.theme}`}>
+    // La clé permet à React de savoir qu'il faut redessiner cette partie
+    <div key={updateKey} className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${user.theme}`}>
+      
+      {/* 👇 VIDÉO AU PREMIER PLAN 👇 */}
+      <IntroVideo />
+
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
