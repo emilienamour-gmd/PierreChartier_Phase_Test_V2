@@ -21,9 +21,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
 
-  // Fenêtres d'attribution en JOURS
-  const [attrClick, setAttrClick] = useState(7); 
-  const [attrView, setAttrView] = useState(1);   
+  // Fenêtres d'attribution en JOURS (Standard DSP)
+  const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
+  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour (Standard)
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -55,7 +55,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     cpmCostActuelCalc = project.cpmRevenueActual * (1 - project.margeInput / 100);
   }
 
-  // Weighted averages
+  // Weighted averages from table
   const totalSpendTable = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   let wMargin = currentMarginPctCalc;
   let wCpmRev = project.cpmRevenueActual;
@@ -63,14 +63,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   let wKpi = project.actualKpi;
 
   if (totalSpendTable > 0) {
-    wMargin = project.lineItems.reduce((acc, li) => acc + (li.spend * li.marginPct), 0) / totalSpendTable;
-    const totalImpTable = project.lineItems.reduce((acc, li) => acc + (li.cpmRevenue > 0 ? li.spend / li.cpmRevenue : 0), 0);
+    wMargin = project.lineItems.reduce((acc, li) => acc + ((li.spend || 0) * li.marginPct), 0) / totalSpendTable;
+    const totalImpTable = project.lineItems.reduce((acc, li) => acc + (li.cpmRevenue > 0 ? (li.spend || 0) / li.cpmRevenue : 0), 0);
     if (totalImpTable > 0) {
       wCpmRev = totalSpendTable / totalImpTable;
-      const totalCostTable = project.lineItems.reduce((acc, li) => acc + (li.spend * (1 - li.marginPct / 100)), 0);
+      const totalCostTable = project.lineItems.reduce((acc, li) => acc + ((li.spend || 0) * (1 - li.marginPct / 100)), 0);
       wCpmCost = totalCostTable / totalImpTable;
     }
-    wKpi = project.lineItems.reduce((acc, li) => acc + (li.spend * li.kpiActual), 0) / totalSpendTable;
+    wKpi = project.lineItems.reduce((acc, li) => acc + ((li.spend || 0) * li.kpiActual), 0) / totalSpendTable;
   }
 
   const dispCpmCost = dashSource === "table" ? wCpmCost : cpmCostActuelCalc;
@@ -164,9 +164,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       }
       
       if (!lockedLines.has(li.id)) {
-        const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : li.spend;
-        // Smoothing to avoid drastic cuts
-        newSpend = (theoreticalSpend * 0.7) + (li.spend * 0.3);
+        const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+        newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
       }
       
       return { 
@@ -561,6 +560,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
+                        const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
                         const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
                         const exceeds = newRevOpt1 > project.cpmSoldCap;
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
@@ -634,7 +634,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let dropPess = 1;
                         let expertExplanation = "";
                         
-                        // --- CERVEAU TRADER EXPERT v4.0 (Correction Variable Reference) ---
+                        // --- CERVEAU TRADER EXPERT v4.0 ---
                         const hasViewWindow = attrView > 0;
                         const isStrictClick = attrView === 0;
                         const isLongView = attrView >= 2; // > 1 jour
@@ -892,49 +892,181 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="px-6 py-4 font-bold">Line Item</th>
-                          <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
-                          <th className="px-6 py-4 font-bold">CPM Revenu</th>
-                          <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
-                          <th className="px-6 py-4 font-bold">KPI Actuel</th>
+                          <th className="px-6 py-4 font-bold">Dépense Jour</th>
+                          <th className="px-6 py-4 font-bold">CPM Revenu Actuel</th>
+                          <th className="px-6 py-4 font-bold">Marge Actuelle %</th>
+                          <th className="px-6 py-4 font-bold">KPI Actuel ({project.kpiType})</th>
+                          <th className="px-6 py-4 font-bold"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-blue-100">
-                        {proposedOptimizations.map((li) => {
-                          const original = project.lineItems.find(o => o.id === li.id);
-                          const spendDiff = original ? li.spend - (original.spend || 0) : 0;
-                          const marginDiff = original ? li.marginPct - original.marginPct : 0;
-                          
-                          return (
-                            <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
-                              <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
-                                  {spendDiff !== 0 && (
-                                    <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                      ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
-                                  {marginDiff !== 0 && (
-                                    <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                      ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
-                            </tr>
-                          );
-                        })}
+                      <tbody className="divide-y divide-gray-100">
+                        {project.lineItems.map((li, idx) => (
+                          <tr key={li.id} className="hover:bg-gray-50 transition-colors bg-white">
+                            <td className="px-6 py-3 flex items-center gap-2">
+                              <button 
+                                onClick={() => toggleLock(li.id)}
+                                className={cn("p-1.5 rounded-md transition-colors", lockedLines.has(li.id) ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
+                                title={lockedLines.has(li.id) ? "Budget verrouillé" : "Budget modifiable"}
+                              >
+                                {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                              </button>
+                              <input 
+                                type="text" 
+                                className="w-full bg-transparent border-none focus:ring-0 p-0 text-sm font-medium text-gray-900"
+                                value={li.name}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].name = e.target.value;
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" 
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.spend}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].spend = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.1"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.cpmRevenue}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].cpmRevenue = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.5"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.marginPct}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].marginPct = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.01"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.kpiActual}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].kpiActual = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <button 
+                                onClick={() => {
+                                  const newItems = project.lineItems.filter((_, i) => i !== idx);
+                                  updateField("lineItems", newItems);
+                                }}
+                                className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
+                  <button 
+                    onClick={() => {
+                      updateField("lineItems", [
+                        ...project.lineItems, 
+                        { id: Date.now().toString(), name: "Nouvelle Ligne", spend: 0, cpmRevenue: project.cpmRevenueActual, marginPct: currentMarginPctCalc, kpiActual: project.actualKpi }
+                      ]);
+                    }}
+                    className="text-sm text-blue-600 font-bold hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-lg transition-colors"
+                  >
+                    + Ajouter une ligne
+                  </button>
+
+                  {proposedOptimizations && (
+                    <div className="mt-8 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-bold text-blue-900">Propositions d'Optimisation</h3>
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => setProposedOptimizations(null)}
+                            className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                          >
+                            Annuler
+                          </button>
+                          <button 
+                            onClick={applyOptimizations}
+                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Appliquer les changements
+                          </button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
+                            <tr>
+                              <th className="px-6 py-4 font-bold">Line Item</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
+                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
+                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-blue-100">
+                            {proposedOptimizations.map((li) => {
+                              const original = project.lineItems.find(o => o.id === li.id);
+                              const spendDiff = original ? li.spend - (original.spend || 0) : 0;
+                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                              
+                              return (
+                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
+                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
+                                      {spendDiff !== 0 && (
+                                        <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
+                                      {marginDiff !== 0 && (
+                                        <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
