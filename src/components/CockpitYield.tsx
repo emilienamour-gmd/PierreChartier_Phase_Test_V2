@@ -593,52 +593,84 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
                         const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
                         
-                        let dropOpt, dropPess;
+                        let dropOpt = 1; 
+                        let dropPess = 1;
                         let expertExplanation = "";
                         
-                        // Expert Programmatic Logic based on KPI
-                        const kpi = project.kpiType.toUpperCase();
-                        if (kpi.includes("CPA") || kpi.includes("CPL") || kpi.includes("CPV")) {
-                          // Severe impact for bottom funnel / high quality video
-                          if (priceDrop >= 0) {
-                            dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                            dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                            expertExplanation = `Le ${kpi} est ultra-sensible au win-rate sur les inventaires premium. Baisser le bid (floor price) vous exclut des enchères à forte intention (SPO, PMP premium) ou des emplacements à haute complétion/visibilité. L'algorithme du DSP (DCO/Bidding) perd ses signaux. La dégradation de la performance est exponentielle.`;
-                          } else {
-                            dropOpt = 1 - (priceDrop * 1.5);
-                            dropPess = 1 - (priceDrop * 0.8);
-                            expertExplanation = `Augmenter le bid donne accès à des inventaires premium (Above The Fold, Private Marketplaces). L'algorithme du DSP aura plus de liquidité pour trouver des utilisateurs intentionnistes, améliorant significativement le ${kpi}.`;
-                          }
-                        } else if (kpi.includes("CPC") || kpi.includes("CTR")) {
-                          // Moderate impact
-                          if (priceDrop >= 0) {
-                            dropOpt = Math.max(0.1, 1 - (priceDrop * 0.8));
-                            dropPess = Math.max(0.1, 1 - (priceDrop * 1.5));
-                            expertExplanation = `Le ${kpi} est corrélé à la visibilité et au format. Une baisse du bid réduit l'accès aux emplacements haut de page (ATF). La dégradation est linéaire mais peut s'accélérer si on tombe sous les clearing prices du marché.`;
-                          } else {
-                            dropOpt = 1 - (priceDrop * 1.2);
-                            dropPess = 1 - (priceDrop * 0.5);
-                            expertExplanation = `Un bid plus agressif permet de remporter des enchères sur des emplacements plus visibles (haut de page, sticky ads), ce qui booste mécaniquement le ${kpi}.`;
-                          }
-                        } else {
-                          // CPM or others: 1:1 impact
-                          if (priceDrop >= 0) {
-                            dropOpt = Math.max(0.1, 1 - (priceDrop * 0.5));
-                            dropPess = Math.max(0.1, 1 - (priceDrop * 1.0));
-                            expertExplanation = `Le KPI étant lié au volume/CPM, l'impact est mécanique. Attention toutefois à la brand safety et à la viewability qui vont chuter proportionnellement à la baisse du bid vers des inventaires long-tail.`;
-                          } else {
-                            dropOpt = 1 - (priceDrop * 1.0);
-                            dropPess = 1 - (priceDrop * 0.5);
-                            expertExplanation = `Acheter plus cher augmente la qualité globale de l'inventaire diffusé (meilleurs sites, meilleure visibilité).`;
-                          }
+                        // --- CERVEAU TRADER OPEN WEB (RTB ONLY) ---
+                        switch(project.kpiType) {
+                          case "CPA":
+                          case "CPL":
+                            if (priceDrop >= 0) { // Baisse du Bid
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 2.5)); // Impact violent sur l'Open
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 4.0));
+                              expertExplanation = "📉 SMART BIDDING BRIDÉ : En Open Auction, les cookies à forte intention d'achat sont détectés par tous les DSP. La pression concurrentielle sur ces utilisateurs est énorme. En baissant votre Max Bid, vous empêchez l'algo de 'sniper' ces conversions. Vous ne gagnerez plus que des impressions 'low intent' inutiles.";
+                            } else { // Hausse du Bid
+                              dropOpt = 1 - (priceDrop * 1.5);
+                              dropPess = 1 - (priceDrop * 0.8);
+                              expertExplanation = "🚀 HEADROOM ALGO : En augmentant votre plafond d'enchère, vous donnez de l'air au Smart Bidding. Il pourra aller chercher les 5% d'utilisateurs qui convertissent vraiment, même si le Clearing Price est élevé ponctuellement.";
+                            }
+                            break;
+
+                          case "CPCV":
+                          case "CPV":
+                            if (priceDrop >= 0) {
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                              expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream (Pre-roll sur contenu éditorial) a des Floor Prices SSP élevés. Si vous baissez le bid, vous passez mécaniquement sous ces floors. Vous serez relégué sur de l'In-Banner Video ou des formats interstitiels forcés où la complétion est artificielle ou nulle.";
+                            } else {
+                              dropOpt = 1 - (priceDrop * 1.2);
+                              dropPess = 1 - (priceDrop * 0.5);
+                              expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices des gros éditeurs News/Media pour accéder à leur inventaire In-Stream natif, garantissant une complétion naturelle.";
+                            }
+                            break;
+
+                          case "CTR":
+                          case "CPC":
+                            if (priceDrop >= 0) {
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
+                              expertExplanation = "👀 VISIBILITÉ OPEN WEB : Le CTR est corrélé à la position. En baissant le bid, vous perdez les enchères 'First Look' et les emplacements Haut de Page. Vous récupérez les restes : bas de page, sidebars, ou pire, les sites MFA (Made For Advertising) qui génèrent des clics accidentels de mauvaise qualité.";
+                            } else {
+                              dropOpt = 1 - (priceDrop * 1.4);
+                              dropPess = 1 - (priceDrop * 0.7);
+                              expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions pour les emplacements 970x250 ou 300x600 en haut de page, là où le CTR est le plus élevé organiquement.";
+                            }
+                            break;
+
+                          case "Viewability":
+                            if (priceDrop >= 0) {
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 1.6));
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
+                              expertExplanation = "📉 JUNK INVENTORY : Les emplacements très visibles (Sticky, ATF) sont protégés par des prix planchers dynamiques par les SSP. En baissant le bid, vous n'achetez plus que le 'Remnant Inventory' (invendus) en bas de page, structurellement peu visible.";
+                            } else {
+                              dropOpt = 1 - (priceDrop * 1.1);
+                              dropPess = 1 - (priceDrop * 0.5);
+                              expertExplanation = "👁️ WIN-RATE QUALITÉ : Un CPM élevé permet de maintenir un Win-Rate décent quand vous appliquez des filtres Pre-Bid stricts (ex: IAS Viewability > 70%).";
+                            }
+                            break;
+
+                          default: // CPM (Volume pur)
+                            if (priceDrop >= 0) {
+                              dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
+                              dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
+                              expertExplanation = "⚠️ RISQUE MFA : Sur l'Open Web, un CPM trop bas vous expose massivement aux sites MFA (Made For Advertising) et aux domaines de click-bait. Vous aurez du volume, mais sur des domaines de qualité médiocre.";
+                            } else {
+                              dropOpt = 1 - (priceDrop * 0.6);
+                              dropPess = 1 - (priceDrop * 0.3);
+                              expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists d'éditeurs Premium sans être bloqué par leurs Floor Prices agressifs.";
+                            }
+                            break;
                         }
                         
+                        // Calcul final du KPI
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
-
                         let kpiOpt2 = 0, kpiPess2 = 0;
+
                         if (isFin) {
                           if (project.kpiType === "CPM") {
-                            kpiOpt2 = project.cpmRevenueActual; kpiPess2 = project.cpmRevenueActual;
+                            kpiOpt2 = project.cpmRevenueActual; 
+                            kpiPess2 = project.cpmRevenueActual;
                           } else if (perfRate > 0) {
                             kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
                             kpiPess2 = project.cpmRevenueActual / ((perfRate * dropPess) * 1000);
@@ -656,19 +688,18 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             </div>
                             
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {/* MODIFICATION ICI : KPI EN GRAS */}
                               <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
                                 IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
                               </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                <span className="text-sm font-bold text-emerald-600">
+                                <span className={cn("text-sm font-bold", (isFin ? kpiOpt2 <= project.actualKpi : kpiOpt2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
                                   {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                <span className="text-sm font-bold text-red-600">
+                                <span className={cn("text-sm font-bold", (isFin ? kpiPess2 <= project.actualKpi : kpiPess2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
                                   {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
@@ -676,11 +707,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
                             <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
                               <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
-                                <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Pourquoi ?</span>
+                                <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert Open Web</span>
                                 <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
                               </summary>
                               <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
-                                <strong>Analyse Algorithmique :</strong> {expertExplanation}
+                                <strong>{project.kpiType} Impact :</strong> {expertExplanation}
                               </div>
                             </details>
                           </div>
