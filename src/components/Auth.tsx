@@ -17,14 +17,15 @@ export function Auth() {
 
     try {
       if (isLogin) {
-        // 1. On active le drapeau pour la vidéo
+        // 1. On prépare la vidéo
         sessionStorage.setItem("showIntroVideo", "true");
 
-        // 2. On connecte l'utilisateur
+        // 2. On connecte l'utilisateur (ça met à jour le LocalStorage)
         await login(username, password);
         
-        // 3. ❌ ON NE RECHARGE PLUS LA PAGE !
-        // React va détecter le changement de "user" tout seul et afficher le dashboard + la vidéo
+        // 3. 📢 LE SIGNAL MAGIQUE !
+        // On envoie un événement personnalisé pour dire à tout le site de se mettre à jour
+        window.dispatchEvent(new Event("force-app-update"));
         
       } else {
         await register(username, password);
