@@ -759,14 +759,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiOpt2 <= project.actualKpi : kpiOpt2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
-                                  {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                <span className="text-sm font-bold text-emerald-600">
+                                  {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiPess2 <= project.actualKpi : kpiPess2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
-                                  {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                <span className="text-sm font-bold text-red-600">
+                                  {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                             </div>
@@ -892,181 +892,51 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="px-6 py-4 font-bold">Line Item</th>
-                          <th className="px-6 py-4 font-bold">Dépense Jour</th>
-                          <th className="px-6 py-4 font-bold">CPM Revenu Actuel</th>
-                          <th className="px-6 py-4 font-bold">Marge Actuelle %</th>
-                          <th className="px-6 py-4 font-bold">KPI Actuel ({project.kpiType})</th>
-                          <th className="px-6 py-4 font-bold"></th>
+                          <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
+                          <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                          <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
+                          <th className="px-6 py-4 font-bold">KPI Actuel</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {project.lineItems.map((li, idx) => (
-                          <tr key={li.id} className="hover:bg-gray-50 transition-colors bg-white">
-                            <td className="px-6 py-3 flex items-center gap-2">
-                              <button 
-                                onClick={() => toggleLock(li.id)}
-                                className={cn("p-1.5 rounded-md transition-colors", lockedLines.has(li.id) ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
-                                title={lockedLines.has(li.id) ? "Budget verrouillé" : "Budget modifiable"}
-                              >
-                                {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                              </button>
-                              <input 
-                                type="text" 
-                                className="w-full bg-transparent border-none focus:ring-0 p-0 text-sm font-medium text-gray-900"
-                                value={li.name}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].name = e.target.value;
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" 
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.spend}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].spend = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.1"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.cpmRevenue}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].cpmRevenue = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.5"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.marginPct}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].marginPct = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3">
-                              <input 
-                                type="number" step="0.01"
-                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
-                                value={li.kpiActual}
-                                onChange={(e) => {
-                                  const newItems = [...project.lineItems];
-                                  newItems[idx].kpiActual = Number(e.target.value);
-                                  updateField("lineItems", newItems);
-                                }}
-                              />
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <button 
-                                onClick={() => {
-                                  const newItems = project.lineItems.filter((_, i) => i !== idx);
-                                  updateField("lineItems", newItems);
-                                }}
-                                className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                      <tbody className="divide-y divide-blue-100">
+                        {proposedOptimizations.map((li) => {
+                          const original = project.lineItems.find(o => o.id === li.id);
+                          const spendDiff = original ? li.spend - (original.spend || 0) : 0;
+                          const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                          
+                          return (
+                            <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
+                              <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-900 font-bold">
+                                    {li.spend.toFixed(2)} {currSym}
+                                  </span>
+                                  {spendDiff !== 0 && (
+                                    <span className={cn("text-xs font-medium whitespace-nowrap", spendDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                      ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
+                                  {marginDiff !== 0 && (
+                                    <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
+                                      ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-                  <button 
-                    onClick={() => {
-                      updateField("lineItems", [
-                        ...project.lineItems, 
-                        { id: Date.now().toString(), name: "Nouvelle Ligne", spend: 0, cpmRevenue: project.cpmRevenueActual, marginPct: currentMarginPctCalc, kpiActual: project.actualKpi }
-                      ]);
-                    }}
-                    className="text-sm text-blue-600 font-bold hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-lg transition-colors"
-                  >
-                    + Ajouter une ligne
-                  </button>
-
-                  {proposedOptimizations && (
-                    <div className="mt-8 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-bold text-blue-900">Propositions d'Optimisation</h3>
-                        <div className="flex gap-3">
-                          <button 
-                            onClick={() => setProposedOptimizations(null)}
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                          >
-                            Annuler
-                          </button>
-                          <button 
-                            onClick={applyOptimizations}
-                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Appliquer les changements
-                          </button>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
-                            <tr>
-                              <th className="px-6 py-4 font-bold">Line Item</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
-                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
-                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-blue-100">
-                            {proposedOptimizations.map((li) => {
-                              const original = project.lineItems.find(o => o.id === li.id);
-                              const spendDiff = original ? li.spend - (original.spend || 0) : 0;
-                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
-                              
-                              return (
-                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
-                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.spend.toFixed(2)} {currSym}</span>
-                                      {spendDiff !== 0 && (
-                                        <span className={spendDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
-                                      {marginDiff !== 0 && (
-                                        <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
