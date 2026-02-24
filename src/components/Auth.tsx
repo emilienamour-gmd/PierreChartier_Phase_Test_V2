@@ -10,22 +10,19 @@ export function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useUserStore();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        // 1. On active le drapeau pour la vidéo
+        // 1. Vidéo ON
         sessionStorage.setItem("showIntroVideo", "true");
-
-        // 2. On connecte l'utilisateur
+        // 2. Login (LocalStorage update)
         await login(username, password);
-        
-        // 3. 📢 ON ENVOIE LE SIGNAL (Pas de reload = Son activé !)
+        // 3. SIGNAL IMMÉDIAT
         window.dispatchEvent(new Event("force-app-update"));
-        
       } else {
         await register(username, password);
       }
