@@ -805,13 +805,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
                                 <span className="text-sm font-bold text-emerald-600">
-                                  {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
                                 <span className="text-sm font-bold text-red-600">
-                                  {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                             </div>
