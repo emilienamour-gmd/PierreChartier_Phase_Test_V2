@@ -5,11 +5,15 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
+import multer from "multer";
+import { parse } from "csv-parse/sync";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key-change-me";
+const upload = multer({ dest: 'uploads/' });
 
 // Initialize SQLite database
 const db = new Database("app.db");
@@ -148,6 +152,101 @@ async function startServer() {
     
     res.json({ success: true });
   });
+
+  // ... (votre route app.delete est ici) ...
+
+  // --- NOUVELLE ROUTE : Traitement DV360 ---
+  app.post("/api/market-data/upload", upload.single('file'), (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu" });
+
+    try {
+      const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+      
+      // 1. Lecture du CSV DV360
+      const records = parse(fileContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        bom: true
+      });
+
+      // Structure pour stocker les résultats
+      const aggregation: Record<string, Record<string, { cost: number, imps: number }>> = {};
+
+      for (const row of records) {
+        // 2. Mapping des colonnes
+        const country = row['Country']; 
+        const adType = row['Ad Type'];
+        const size = row['Creative Size'];
+        
+        const cost = parseFloat(row['Total Media Cost (Partner Currency)'] || "0");
+        const imps = parseFloat(row['Impressions'] || "0");
+
+        if (!country || !adType || isNaN(cost) || isNaN(imps)) continue;
+
+        // 3. Création de noms de formats lisibles
+        let formatName = adType;
+        if (size && size !== "Unknown" && size !== "1x1") {
+            formatName = size === "Unknown" ? adType : `${adType} (${size})`;
+        }
+        
+        if (formatName === "In-Stream Video") formatName = "Video Pre-roll";
+        if (formatName === "In-Stream Audio") formatName = "Audio Digital";
+
+        // Initialisation
+        if (!aggregation[country]) aggregation[country] = {};
+        if (!aggregation[country][formatName]) aggregation[country][formatName] = { cost: 0, imps: 0 };
+
+        // Somme des données
+        aggregation[country][formatName].cost += cost;
+        aggregation[country][formatName].imps += imps;
+      }
+
+      // 4. Calcul final des CPM & Génération de l'historique
+      const processedData: any = {
+        fees_dsp: 15,
+      };
+
+      for (const country in aggregation) {
+        processedData[country] = {};
+        for (const format in aggregation[country]) {
+          const { cost, imps } = aggregation[country][format];
+          
+          const cpm = imps > 0 ? (cost / imps) * 1000 : 0;
+          
+          // Simulation historique (car pas de dates dans le CSV actuel)
+          const history = [];
+          const today = new Date();
+          for (let i = 365; i >= 0; i--) {
+              const d = new Date();
+              d.setDate(today.getDate() - i);
+              const volatility = cpm * 0.05 * (Math.random() - 0.5); 
+              history.push({
+                  date: d.toISOString().split('T')[0],
+                  price: parseFloat((cpm + volatility).toFixed(2))
+              });
+          }
+
+          processedData[country][format] = {
+            current: parseFloat(cpm.toFixed(2)),
+            history: history
+          };
+        }
+      }
+
+      fs.unlinkSync(req.file.path);
+
+      res.json({ 
+        "DV360 (Google)": processedData 
+      });
+
+    } catch (error) {
+      console.error("Erreur CSV:", error);
+      res.status(500).json({ error: "Erreur lors de l'analyse du fichier CSV." });
+    }
+  });
+
+  // --- Vite Middleware --- (Ne touchez pas à ce qui suit)
 
   // --- Vite Middleware ---
   if (process.env.NODE_ENV !== "production") {
