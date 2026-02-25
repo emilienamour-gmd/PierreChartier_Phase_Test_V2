@@ -5,21 +5,23 @@ interface PricePoint {
   price: number;
 }
 
-// Prix de base Open Web (Display Standard France = référence)
+// Prix de base Open Web - TARGETING PUR (sans Retargeting)
+// Prix volontairement baissés car Retargeting gonfle les CPM de 30-50%
 const BASE_PRICES: Record<string, number> = {
-  "Display Standard": 1.20,
-  "Display Rich Media": 2.50,
-  "Video Pre-roll": 8.50,
-  "Video Mid-roll": 9.20,
-  "Native": 2.10,
-  "Audio Digital": 5.20,
+  "Display Standard": 0.85,      // Baissé de 1.20 → 0.85
+  "Display Rich Media": 1.80,    // Baissé de 2.50 → 1.80
+  "Video Pre-roll": 6.50,        // Baissé de 8.50 → 6.50
+  "Video Mid-roll": 7.00,        // Baissé de 9.20 → 7.00
+  "Native": 1.60,                // Baissé de 2.10 → 1.60
+  "Audio Digital": 4.20,         // Baissé de 5.20 → 4.20
 };
 
-// Multiplicateurs par pays
+// Multiplicateurs par pays (vs France)
 const COUNTRY_MULTIPLIERS: Record<string, number> = {
   "France": 1.00,
-  "Italie": 0.75,    // 25% moins cher
-  "Belgique": 1.25,  // 25% plus cher
+  "Italie": 0.75,      // 25% moins cher
+  "Belgique": 1.25,    // 25% plus cher
+  "UAE": 1.65,         // 65% plus cher (marché premium)
 };
 
 /**
@@ -74,7 +76,7 @@ export function generateMarketHistory(
   country: string,
   days: number = 365
 ): PricePoint[] {
-  const basePrice = BASE_PRICES[format] || 1.20;
+  const basePrice = BASE_PRICES[format] || 0.85;
   const countryMult = COUNTRY_MULTIPLIERS[country] || 1.00;
   
   const history: PricePoint[] = [];
