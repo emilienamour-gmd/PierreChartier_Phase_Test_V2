@@ -4,7 +4,7 @@ import { cn } from "../utils/cn";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2 } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -122,27 +122,34 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
-    // Safety check: ensure values are numbers
+    // Safety check
     const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
     const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
     const availableSpend = Math.max(0, totalSpend - lockedSpend);
     
     const scoredItems = project.lineItems.map(li => {
-      const safeActual = li.kpiActual > 0 ? li.kpiActual : 0.0001;
-      const safeTarget = project.targetKpi > 0 ? project.targetKpi : 0.0001;
-
+      const actual = li.kpiActual || 0;
+      const target = project.targetKpi || 0.0001;
+      
       let perfRatio = 1;
+      
+      // --- LOGIQUE ANTI-ZERO ---
       if (isFin) {
-        perfRatio = safeTarget / safeActual;
+        // Pour CPA, CPV : si actual est 0, c'est que 0 conversions => Performance Nulle (Ratio 0)
+        if (actual === 0) {
+            perfRatio = 0; 
+        } else {
+            perfRatio = target / actual; 
+        }
       } else {
-        perfRatio = safeActual / safeTarget;
+        perfRatio = actual / target;
       }
       
       let allocationScore = 0;
       if (marginGoal === "increase") {
-        allocationScore = Math.pow(Math.max(0.5, perfRatio), 2) * (1 + li.marginPct / 100);
+        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
       } else {
-        allocationScore = Math.pow(Math.max(0.5, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
+        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
       }
       
       return { ...li, perfRatio, allocationScore };
@@ -153,20 +160,30 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     
     const optimizedItems = scoredItems.map(li => {
       let newMargin = li.marginPct;
-      let newSpend = li.spend;
+      let newSpend = li.spend || 0;
       
-      if (marginGoal === "increase") {
+      // --- SANCTION POUR KPI = 0 ---
+      if (isFin && li.perfRatio === 0) {
+          // Punition : on augmente la marge de 15% pour casser le bid
+          newMargin = Math.min(95, li.marginPct + 15);
+      } else if (marginGoal === "increase") {
         if (li.perfRatio >= 1.2) newMargin += 5;
-        else if (li.perfRatio >= 1.05) newMargin += 2;
+        else if (li.perfRatio >= 1.0) newMargin += 2;
+        else newMargin += 1;
       } else if (marginGoal === "decrease") {
-        if (li.perfRatio < 0.8) newMargin -= 5;
-        else if (li.perfRatio < 1.0) newMargin -= 2;
+        if (li.perfRatio >= 1.2) newMargin -= 2;
+        else if (li.perfRatio > 0) newMargin -= 5;
       }
       
       if (!lockedLines.has(li.id)) {
-        const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-        // Smoothing
-        newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        // Redistribution du budget
+        if (isFin && li.perfRatio === 0) {
+            // Si 0 conversion, on coupe le budget drastiquement (-70% par rapport à l'actuel)
+            newSpend = (li.spend || 0) * 0.3;
+        } else {
+            const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+            newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        }
       }
       
       return { 
@@ -205,7 +222,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 1. Campagne */}
         <div className="space-y-4">
-          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
           <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
@@ -257,7 +273,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 2. Finance */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
           <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">2. Finance</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Vendu Cap ({currSym})</label>
@@ -281,7 +296,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 3. Achat */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
           <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -319,7 +333,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
         {/* 4. KPI */}
         <div className="space-y-4 pt-6 border-t border-gray-100">
-          {/* TITRE MODIFIÉ : BLEU ET GRAS */}
           <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">4. KPI Objectif</h3>
           <div>
             <label className="block text-xs text-gray-500 mb-1.5 font-medium">Type de KPI</label>
@@ -892,7 +905,113 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  {/* TABLEAU OPTIMISATION */}
+                  {proposedOptimizations && (
+                    <>
+                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
+                            <tr>
+                              <th className="px-6 py-4 font-bold">Line Item</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
+                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
+                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-blue-100">
+                            {proposedOptimizations.map((li) => {
+                              const original = project.lineItems.find(o => o.id === li.id);
+                              const spendDiff = original ? (li.spend || 0) - (original.spend || 0) : 0;
+                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                              
+                              return (
+                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
+                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900 font-bold">
+                                        {li.spend.toFixed(2)} {currSym}
+                                      </span>
+                                      {spendDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium whitespace-nowrap", spendDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
+                                      {marginDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium ml-1", marginDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* 👇 NOUVEL ONGLET D'IMPACT ANALYTICS 👇 */}
+                      <div className="mt-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-3">
+                            <div className="bg-indigo-100 p-2 rounded-lg">
+                                <Activity className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <h4 className="text-lg font-bold text-gray-900">Impact Projeté de la Nouvelle Marge</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                {(() => {
+                                    const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
+                                    const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
+                                    
+                                    const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
+                                    const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
+                                    
+                                    const marginDiff = newWeightedMargin - oldWeightedMargin;
+
+                                    return (
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm text-gray-500">Nouvelle Marge Globale</span>
+                                                <span className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
+                                                    {newWeightedMargin.toFixed(2)} %
+                                                    <span className="text-xs ml-2 opacity-75">
+                                                        ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)} pts)
+                                                    </span>
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm text-gray-500">Total Media Spend</span>
+                                                <span className="text-xl font-black text-gray-900">
+                                                    {newTotalSpend.toFixed(2)} {currSym}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100">
+                                <strong>Analyse Algorithmique :</strong><br/>
+                                {marginGoal === "increase" 
+                                    ? "Stratégie de consolidation. Nous avons augmenté la marge sur les lignes performantes pour sécuriser le profit, et sanctionné lourdement les lignes à 0 conversion (CPA Infini) par une hausse de marge préventive." 
+                                    : "Stratégie de conquête. Nous avons libéré du budget (baisse de marge) sur les lignes à fort potentiel pour aller chercher plus de volume, tout en coupant l'exposition sur les inventaires stériles (0 conversion)."}
+                            </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 mt-8">
                     <table className="w-full text-sm text-left">
                       <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                         <tr>
@@ -1001,79 +1120,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   >
                     + Ajouter une ligne
                   </button>
-
-                  {proposedOptimizations && (
-                    <div className="mt-8 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-bold text-blue-900">Propositions d'Optimisation</h3>
-                        <div className="flex gap-3">
-                          <button 
-                            onClick={() => setProposedOptimizations(null)}
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                          >
-                            Annuler
-                          </button>
-                          <button 
-                            onClick={applyOptimizations}
-                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Appliquer les changements
-                          </button>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
-                            <tr>
-                              <th className="px-6 py-4 font-bold">Line Item</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
-                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
-                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
-                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-blue-100">
-                            {proposedOptimizations.map((li) => {
-                              const original = project.lineItems.find(o => o.id === li.id);
-                              const spendDiff = original ? li.spend - (original.spend || 0) : 0;
-                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
-                              
-                              return (
-                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
-                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900 font-bold">
-                                        {li.spend.toFixed(2)} {currSym}
-                                      </span>
-                                      {spendDiff !== 0 && (
-                                        <span className={cn("text-xs font-medium whitespace-nowrap", spendDiff > 0 ? "text-emerald-600" : "text-red-600")}>
-                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
-                                      {marginDiff !== 0 && (
-                                        <span className={marginDiff > 0 ? "text-emerald-500 text-xs" : "text-red-500 text-xs"}>
-                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
