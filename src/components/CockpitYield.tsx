@@ -4,7 +4,7 @@ import { cn } from "../utils/cn";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -135,7 +135,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       // --- LOGIQUE ANTI-ZERO ---
       if (isFin) {
-        // Pour CPA, CPV : si actual est 0, c'est que 0 conversions => Performance Nulle (Ratio 0)
+        // Pour CPA, CPV : si actual est 0, c'est que 0 conversion => Performance Nulle
         if (actual === 0) {
             perfRatio = 0; 
         } else {
@@ -162,23 +162,40 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       let newMargin = li.marginPct;
       let newSpend = li.spend || 0;
       
-      // --- SANCTION POUR KPI = 0 ---
+      // --- CERVEAU TRADER EXPERT ---
+      
       if (isFin && li.perfRatio === 0) {
-          // Punition : on augmente la marge de 15% pour casser le bid
+          // 1. CAS CRITIQUE : 0 Conversion
+          // SANCTION : Hausse violente de la marge (+15%) pour casser le bid.
+          // On arrête de payer cher pour du vide.
           newMargin = Math.min(95, li.marginPct + 15);
-      } else if (marginGoal === "increase") {
-        if (li.perfRatio >= 1.2) newMargin += 5;
-        else if (li.perfRatio >= 1.0) newMargin += 2;
-        else newMargin += 1;
-      } else if (marginGoal === "decrease") {
-        if (li.perfRatio >= 1.2) newMargin -= 2;
-        else if (li.perfRatio > 0) newMargin -= 5;
+      
+      } else if (li.perfRatio < 1.0) {
+          // 2. CAS SOUS-PERFORMANCE (KPI hors objectifs)
+          // RÈGLE : INTERDICTION D'AUGMENTER LA MARGE
+          if (marginGoal === "increase") {
+              newMargin = li.marginPct; // On gèle la marge (Status Quo)
+          } else {
+              // Si on veut booster, on baisse la marge pour aider le bid
+              newMargin = Math.max(5, li.marginPct - 5);
+          }
+          
+      } else {
+          // 3. CAS PERFORMANCE (KPI atteint)
+          // On peut optimiser
+          if (marginGoal === "increase") {
+            if (li.perfRatio >= 1.2) newMargin += 5;
+            else if (li.perfRatio >= 1.0) newMargin += 2;
+          } else if (marginGoal === "decrease") {
+            if (li.perfRatio >= 1.2) newMargin -= 2;
+            else if (li.perfRatio > 1.0) newMargin -= 5;
+          }
       }
       
       if (!lockedLines.has(li.id)) {
         // Redistribution du budget
         if (isFin && li.perfRatio === 0) {
-            // Si 0 conversion, on coupe le budget drastiquement (-70% par rapport à l'actuel)
+            // Si 0 conversion, on coupe le budget drastiquement (-70%)
             newSpend = (li.spend || 0) * 0.3;
         } else {
             const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
@@ -971,40 +988,71 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         <div className="grid grid-cols-2 gap-8">
                             <div>
                                 {(() => {
+                                    // Calcul des moyennes pondérées avant / après
                                     const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
                                     const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
                                     
                                     const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
                                     const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
+                                    const newWeightedCpmRev = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / newTotalSpend : 0;
                                     
                                     const marginDiff = newWeightedMargin - oldWeightedMargin;
+                                    
+                                    // Simulation KPI
+                                    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+                                    const avgPerfRatio = isFin ? 1.05 : 0.95; // Hypothèse conservatrice
+                                    const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
+                                    const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
 
                                     return (
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-gray-500">Nouvelle Marge Globale</span>
-                                                <span className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
-                                                    {newWeightedMargin.toFixed(2)} %
-                                                    <span className="text-xs ml-2 opacity-75">
+                                        <div className="space-y-6">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="text-xs text-gray-500 mb-1">Nouvelle Marge Globale</div>
+                                                    <div className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
+                                                        {newWeightedMargin.toFixed(2)} %
+                                                    </div>
+                                                    <div className="text-xs text-gray-400 mt-1">
                                                         ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)} pts)
-                                                    </span>
-                                                </span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="text-xs text-gray-500 mb-1">Total Trend</div>
+                                                    <div className="text-xl font-black text-gray-900">
+                                                        {newTotalSpend.toFixed(2)} {currSym}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-gray-500">Total Media Spend</span>
-                                                <span className="text-xl font-black text-gray-900">
-                                                    {newTotalSpend.toFixed(2)} {currSym}
-                                                </span>
+
+                                            {/* NOUVELLE SECTION CPM & KPI */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                                                    <div className="text-xs font-bold text-indigo-800 mb-1">CPM Revenu (Moy.)</div>
+                                                    <div className="text-lg font-black text-indigo-600">
+                                                        {newWeightedCpmRev.toFixed(2)} {currSym}
+                                                    </div>
+                                                </div>
+                                                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                                                    <div className="text-xs font-bold text-emerald-800 mb-1">Projection KPI</div>
+                                                    <div className="flex justify-between items-end">
+                                                        <div className="text-xs text-emerald-600">
+                                                            Pess: <strong>{fmtKpi(kpiPessimistic)}</strong>
+                                                        </div>
+                                                        <div className="text-xs text-emerald-600">
+                                                            Opt: <strong>{fmtKpi(kpiOptimistic)}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     );
                                 })()}
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100">
-                                <strong>Analyse Algorithmique :</strong><br/>
+                            <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
+                                <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
                                 {marginGoal === "increase" 
-                                    ? "Stratégie de consolidation. Nous avons augmenté la marge sur les lignes performantes pour sécuriser le profit, et sanctionné lourdement les lignes à 0 conversion (CPA Infini) par une hausse de marge préventive." 
-                                    : "Stratégie de conquête. Nous avons libéré du budget (baisse de marge) sur les lignes à fort potentiel pour aller chercher plus de volume, tout en coupant l'exposition sur les inventaires stériles (0 conversion)."}
+                                    ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité (ratio > 1). Les lignes à 0 conversion ont été lourdement sanctionnées (hausse de marge) pour stopper l'hémorragie budgétaire." 
+                                    : "Offensive de volume. Nous avons sacrifié de la marge sur les meilleurs performers pour aller chercher plus de conversions. Les lignes stériles (0 conv) ont été coupées pour financer cette croissance."}
                             </div>
                         </div>
                       </div>
