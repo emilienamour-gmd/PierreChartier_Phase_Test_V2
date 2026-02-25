@@ -4,7 +4,7 @@ import { cn } from "../utils/cn";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3 } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -133,9 +133,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       let perfRatio = 1;
       
-      // --- LOGIQUE ANTI-ZERO ---
+      // --- LOGIQUE KPI ---
       if (isFin) {
-        // Pour CPA, CPV : si actual est 0, c'est que 0 conversion => Performance Nulle
+        // Pour CPA, CPV : si actual est 0, c'est que 0 conversion => Ratio 0
         if (actual === 0) {
             perfRatio = 0; 
         } else {
@@ -146,10 +146,17 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       }
       
       let allocationScore = 0;
-      if (marginGoal === "increase") {
-        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
+      
+      // SI LE KPI EST A 0 (Aucune conversion), LE SCORE EST NUL
+      // On ne donne pas de budget à une ligne qui ne marche pas.
+      if (perfRatio === 0) {
+          allocationScore = 0; 
       } else {
-        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
+          if (marginGoal === "increase") {
+            allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
+          } else {
+            allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
+          }
       }
       
       return { ...li, perfRatio, allocationScore };
@@ -162,27 +169,28 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       let newMargin = li.marginPct;
       let newSpend = li.spend || 0;
       
-      // --- CERVEAU TRADER EXPERT ---
+      // --- CERVEAU TRADER EXPERT (RÈGLE MARGE) ---
       
       if (isFin && li.perfRatio === 0) {
-          // 1. CAS CRITIQUE : 0 Conversion
-          // SANCTION : Hausse violente de la marge (+15%) pour casser le bid.
-          // On arrête de payer cher pour du vide.
-          newMargin = Math.min(95, li.marginPct + 15);
-      
+          // CAS 1 : 0 Conversion (KPI = 0)
+          // RÈGLE : Interdiction formelle de monter la marge pour prendre du profit.
+          // On maintient la marge (Status Quo) ou on applique une légère pénalité technique.
+          newMargin = li.marginPct; 
+          
       } else if (li.perfRatio < 1.0) {
-          // 2. CAS SOUS-PERFORMANCE (KPI hors objectifs)
-          // RÈGLE : INTERDICTION D'AUGMENTER LA MARGE
+          // CAS 2 : SOUS-PERFORMANCE (KPI > Objectif)
+          // RÈGLE : INTERDICTION DE MONTER LA MARGE
+          // Si on est pas dans les clous, on ne prend pas de profit.
           if (marginGoal === "increase") {
-              newMargin = li.marginPct; // On gèle la marge (Status Quo)
+              newMargin = li.marginPct; // On gèle.
           } else {
-              // Si on veut booster, on baisse la marge pour aider le bid
+              // Si on veut booster, on baisse la marge
               newMargin = Math.max(5, li.marginPct - 5);
           }
           
       } else {
-          // 3. CAS PERFORMANCE (KPI atteint)
-          // On peut optimiser
+          // CAS 3 : PERFORMANCE OK (KPI <= Objectif)
+          // Là on peut optimiser
           if (marginGoal === "increase") {
             if (li.perfRatio >= 1.2) newMargin += 5;
             else if (li.perfRatio >= 1.0) newMargin += 2;
@@ -192,13 +200,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           }
       }
       
+      // --- CERVEAU TRADER EXPERT (RÈGLE BUDGET) ---
       if (!lockedLines.has(li.id)) {
-        // Redistribution du budget
         if (isFin && li.perfRatio === 0) {
-            // Si 0 conversion, on coupe le budget drastiquement (-70%)
-            newSpend = (li.spend || 0) * 0.3;
+            // CAS 1 : 0 Conversion
+            // SANCTION BUDGÉTAIRE MASSIVE : On ne laisse que le strict minimum (10% de l'actuel)
+            newSpend = (li.spend || 0) * 0.1;
         } else {
             const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+            // Smoothing 
             newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
         }
       }
@@ -794,14 +804,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiOpt2 <= project.actualKpi : kpiOpt2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
-                                  {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                <span className="text-sm font-bold text-emerald-600">
+                                  {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                <span className={cn("text-sm font-bold", (isFin ? kpiPess2 <= project.actualKpi : kpiPess2 >= project.actualKpi) ? "text-emerald-600" : "text-red-600")}>
-                                  {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                <span className="text-sm font-bold text-red-600">
+                                  {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
                                 </span>
                               </div>
                             </div>
@@ -1000,7 +1010,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     
                                     // Simulation KPI
                                     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
-                                    const avgPerfRatio = isFin ? 1.05 : 0.95; // Hypothèse conservatrice
                                     const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
                                     const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
 
