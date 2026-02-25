@@ -1,29 +1,16 @@
+// src/components/MarketWatch.tsx
+
 import { useState, useMemo } from "react";
 import { cn } from "../utils/cn";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-
-// Simulated market data
-const MARKET_DATA = {
-  "DV360 (Google)": {
-    fees_dsp: 15,
-    France: { "Display Standard": 1.2, "Video Pre-roll": 8.5, "Native": 2.1 },
-    Italie: { "Display Standard": 0.9, "Video Pre-roll": 6.5, "Native": 1.8 },
-    Belgique: { "Display Standard": 1.5, "Video Pre-roll": 10.0, "Native": 2.5 },
-  },
-  "The Trade Desk (TTD)": {
-    fees_dsp: 12,
-    France: { "Display Standard": 1.1, "Video Pre-roll": 8.0, "Native": 2.0 },
-    Italie: { "Display Standard": 0.8, "Video Pre-roll": 6.0, "Native": 1.7 },
-    Belgique: { "Display Standard": 1.4, "Video Pre-roll": 9.5, "Native": 2.4 },
-  },
-  "Amazon DSP": {
-    fees_dsp: 10,
-    France: { "Display Standard": 1.5, "Video Pre-roll": 9.0, "Native": 2.5 },
-    Italie: { "Display Standard": 1.2, "Video Pre-roll": 7.0, "Native": 2.0 },
-    Belgique: { "Display Standard": 1.8, "Video Pre-roll": 11.0, "Native": 3.0 },
-  }
-};
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { TrendingUp, TrendingDown, Info, DollarSign, Activity, Target } from "lucide-react";
+import { 
+  generateMarketHistory, 
+  getCurrentPrice, 
+  getAvailableFormats, 
+  getAvailableCountries,
+  calculateRSI 
+} from "../utils/marketPricing";
 
 interface MarketWatchProps {
   currentCost: number;
@@ -31,216 +18,303 @@ interface MarketWatchProps {
 
 export function MarketWatch({ currentCost }: MarketWatchProps) {
   const [country, setCountry] = useState("France");
-  const [dsp, setDsp] = useState("DV360 (Google)");
-  const [category, setCategory] = useState("Tous");
-  const [timeRange, setTimeRange] = useState("Month -1");
+  const [format, setFormat] = useState("Video Pre-roll");
+  const [timeRange, setTimeRange] = useState(365);
 
-  const marketInfo = MARKET_DATA[dsp as keyof typeof MARKET_DATA];
-  const fees = marketInfo?.fees_dsp || 15;
-  const formatsData = marketInfo?.[country as keyof typeof marketInfo] as Record<string, number> || {};
+  const availableCountries = getAvailableCountries();
+  const availableFormats = getAvailableFormats();
 
-  const rows = useMemo(() => {
-    return Object.entries(formatsData).map(([formatName, baseCpm]) => {
-      const isDisplay = formatName.includes("Display") || formatName.includes("Sponsored");
-      const isVideo = formatName.includes("Video") || formatName.includes("Pre-roll");
-      const isNative = formatName.includes("Native");
+  // Historique des prix
+  const history = useMemo(() => {
+    return generateMarketHistory(format, country, timeRange);
+  }, [format, country, timeRange]);
 
-      let show = false;
-      if (category === "Tous") show = true;
-      else if (category === "Display" && isDisplay) show = true;
-      else if (category === "Video" && isVideo) show = true;
-      else if (category === "Native" && isNative) show = true;
+  // Prix actuel du marché
+  const marketPrice = useMemo(() => {
+    return getCurrentPrice(format, country);
+  }, [format, country]);
 
-      if (!show) return null;
+  // Statistiques
+  const stats = useMemo(() => {
+    const prices = history.map(h => h.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const firstPrice = prices[0];
+    const lastPrice = prices[prices.length - 1];
+    const priceChange = ((lastPrice / firstPrice) - 1) * 100;
+    
+    // Volatilité (écart-type)
+    const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const variance = prices.reduce((acc, p) => acc + Math.pow(p - mean, 2), 0) / prices.length;
+    const volatility = Math.sqrt(variance);
+    
+    // RSI
+    const rsi = calculateRSI(prices, 14);
+    
+    return { min, max, priceChange, volatility, mean, rsi };
+  }, [history]);
 
-      // Simulate live variation +/- 3%
-      const liveCpm = baseCpm * (0.97 + Math.random() * 0.06);
-      
-      let diffPct = 0;
-      let vsIcon = Minus;
-      let vsColor = "text-gray-500";
-      
-      if (currentCost > 0) {
-        diffPct = ((currentCost - liveCpm) / liveCpm) * 100;
-        if (diffPct < -5) { vsIcon = TrendingDown; vsColor = "text-emerald-500"; }
-        else if (diffPct < 0) { vsIcon = TrendingDown; vsColor = "text-emerald-400"; }
-        else if (diffPct < 10) { vsIcon = TrendingUp; vsColor = "text-amber-500"; }
-        else { vsIcon = TrendingUp; vsColor = "text-red-500"; }
-      }
+  // Comparaison vs ton cost
+  const comparison = useMemo(() => {
+    if (currentCost === 0) return null;
+    
+    const diff = currentCost - marketPrice;
+    const diffPct = (diff / marketPrice) * 100;
+    
+    let status: "excellent" | "good" | "warning" | "danger";
+    let message: string;
+    
+    if (diffPct <= -10) {
+      status = "excellent";
+      message = "Excellent ! Tu achètes 10%+ moins cher que le marché.";
+    } else if (diffPct <= 0) {
+      status = "good";
+      message = "Bon prix. Tu es dans la fourchette basse du marché.";
+    } else if (diffPct <= 10) {
+      status = "warning";
+      message = "Attention. Tu paies un peu plus cher que le marché.";
+    } else {
+      status = "danger";
+      message = "Alerte ! Tu surpaies de +10% vs le marché.";
+    }
+    
+    return { diff, diffPct, status, message };
+  }, [currentCost, marketPrice]);
 
-      return {
-        formatName,
-        liveCpm,
-        diffPct,
-        vsIcon,
-        vsColor,
-        baseValue: liveCpm
+  // Signal trading simple
+  const signal = useMemo(() => {
+    const { rsi, priceChange } = stats;
+    
+    if (rsi < 30 && priceChange < -5) {
+      return { 
+        type: "BUY" as const, 
+        label: "ACHETER", 
+        reason: "Prix en correction + RSI oversold" 
       };
-    }).filter(Boolean);
-  }, [formatsData, category, currentCost]);
+    }
+    
+    if (rsi > 70 && priceChange > 10) {
+      return { 
+        type: "SELL" as const, 
+        label: "AUGMENTER MARGE", 
+        reason: "Prix surchauffe + RSI overbought" 
+      };
+    }
+    
+    return { 
+      type: "HOLD" as const, 
+      label: "STABLE", 
+      reason: "Marché équilibré" 
+    };
+  }, [stats]);
 
-  // Generate chart data based on the first visible format
+  // Données graphique avec MA7
   const chartData = useMemo(() => {
-    if (!rows || rows.length === 0) return [];
-    
-    const sampleFormat = rows[0]!;
-    const currentPrice = sampleFormat.baseValue;
-    
-    let nbPoints = 30;
-    let maWindow = 7;
-    if (timeRange === "Week -1") { nbPoints = 7; maWindow = 3; }
-    else if (timeRange === "Months -6") { nbPoints = 180; maWindow = 30; }
-    else if (timeRange === "Year -1") { nbPoints = 365; maWindow = 60; }
-
-    const data = [];
-    let price = currentPrice * 0.8; // Start lower
-    
-    for (let i = 0; i < nbPoints; i++) {
-      const returnPct = (Math.random() - 0.45) * 0.03; // Slight upward bias
-      price = price * (1 + returnPct);
-      data.push({
-        day: i,
-        price: price,
-        ma: 0 // calculated later
-      });
-    }
-
-    // Calculate MA
-    for (let i = 0; i < nbPoints; i++) {
-      if (i >= maWindow - 1) {
-        let sum = 0;
-        for (let j = 0; j < maWindow; j++) {
-          sum += data[i - j].price;
-        }
-        data[i].ma = sum / maWindow;
-      } else {
-        data[i].ma = data[i].price; // fallback
+    return history.map((h, idx) => {
+      let ma7 = h.price;
+      if (idx >= 6) {
+        ma7 = history.slice(idx - 6, idx + 1).reduce((acc, p) => acc + p.price, 0) / 7;
       }
-    }
-
-    // Force last price to match current
-    const lastPoint = data[data.length - 1];
-    const diff = currentPrice - lastPoint.price;
-    for (let i = 0; i < nbPoints; i++) {
-      data[i].price += diff * (i / nbPoints); // Smooth adjustment
-    }
-
-    return data;
-  }, [rows, timeRange]);
-
-  if (!rows || rows.length === 0) {
-    return <div className="p-8 text-center text-gray-500 font-medium">Aucune donnée pour cette sélection.</div>;
-  }
-
-  const sampleFormat = rows[0]!;
-  const currentPrice = sampleFormat.baseValue;
-  const minPrice = Math.min(...chartData.map(d => d.price));
-  const maxPrice = Math.max(...chartData.map(d => d.price));
-  const priceChange = ((chartData[chartData.length - 1].price / chartData[0].price) - 1) * 100;
+      
+      const dateObj = new Date(h.date);
+      let dateLabel = dateObj.toLocaleDateString('fr-FR', { 
+        day: '2-digit', 
+        month: 'short'
+      });
+      
+      if (timeRange > 90) {
+        dateLabel = dateObj.toLocaleDateString('fr-FR', { 
+          month: 'short',
+          year: '2-digit'
+        });
+      }
+      
+      return {
+        dateLabel,
+        fullDate: h.date,
+        price: h.price,
+        ma7
+      };
+    });
+  }, [history, timeRange]);
 
   return (
     <div className="p-8 h-full overflow-y-auto bg-[#f8f9fa]">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
         
+        {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Market Watch</h2>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 grid grid-cols-3 gap-6">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">🌍 Pays</label>
-            <select 
-              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium"
-              value={country} onChange={(e) => setCountry(e.target.value)}
-            >
-              <option>France</option>
-              <option>Italie</option>
-              <option>Belgique</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">📡 DSP</label>
-            <select 
-              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium"
-              value={dsp} onChange={(e) => setDsp(e.target.value)}
-            >
-              <option>DV360 (Google)</option>
-              <option>The Trade Desk (TTD)</option>
-              <option>Amazon DSP</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">📦 Catégorie</label>
-            <select 
-              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium"
-              value={category} onChange={(e) => setCategory(e.target.value)}
-            >
-              <option>Tous</option>
-              <option>Display</option>
-              <option>Video</option>
-              <option>Native</option>
-            </select>
+          <div className="text-sm text-gray-500 font-medium flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            Prix actualisés en temps réel
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-100 text-blue-800 px-5 py-4 rounded-xl text-sm font-medium flex items-center gap-3">
-          <span className="text-xl">ℹ️</span> <strong>{dsp}</strong> : Fees DSP incluses (~{fees}%)
+        {/* 🔴 ENCADRÉ CRITIQUE : OPEN WEB UNIQUEMENT */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-2xl p-5 flex items-start gap-4 shadow-md">
+          <div className="bg-white p-3 rounded-xl shadow-sm">
+            <Info className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-blue-900 text-lg mb-2">
+              📊 Prix Open Auction Uniquement
+            </h3>
+            <p className="text-blue-800 text-sm leading-relaxed">
+              Les prix affichés représentent le <strong>marché libre (Open Auction)</strong> sur l'Open Web. 
+              <br />
+              <strong className="text-blue-900">Exclus :</strong> Deals privés (PMP), Programmatic Guaranteed, Private Marketplace.
+              <br />
+              Ces prix reflètent les <strong>conditions réelles du marché public</strong> sans négociation de gré à gré.
+            </p>
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 font-bold">Format</th>
-                <th className="px-6 py-4 font-bold">CPM Cost (Net)</th>
-                <th className="px-6 py-4 font-bold">vs Ton Cost ({currentCost.toFixed(2)} €)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {rows.map((row, idx) => {
-                if (!row) return null;
-                const Icon = row.vsIcon;
-                return (
-                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-gray-800">{row.formatName}</td>
-                    <td className="px-6 py-4 text-gray-900 font-black text-lg">{row.liveCpm.toFixed(2)} €</td>
-                    <td className="px-6 py-4">
-                      {currentCost > 0 ? (
-                        <div className={cn("flex items-center gap-1.5 font-bold", row.vsColor)}>
-                          <Icon className="w-5 h-5" />
-                          {row.diffPct > 0 ? "+" : ""}{row.diffPct.toFixed(1)}%
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 font-medium">N/A</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Filtres */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 grid grid-cols-3 gap-5">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              🌍 Pays
+            </label>
+            <select 
+              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
+              value={country} 
+              onChange={(e) => setCountry(e.target.value)}
+            >
+              {availableCountries.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              📦 Format
+            </label>
+            <select 
+              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
+              value={format} 
+              onChange={(e) => setFormat(e.target.value)}
+            >
+              {availableFormats.map(f => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+              📅 Période
+            </label>
+            <select 
+              className="w-full text-sm border-gray-200 bg-gray-50 rounded-xl p-3 border focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
+              value={timeRange} 
+              onChange={(e) => setTimeRange(Number(e.target.value))}
+            >
+              <option value={7}>7 jours</option>
+              <option value={30}>30 jours</option>
+              <option value={90}>3 mois</option>
+              <option value={180}>6 mois</option>
+              <option value={365}>1 an</option>
+            </select>
+          </div>
         </div>
 
-        {/* Chart Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Évolution Historique</h3>
-              <div className="text-sm font-medium text-gray-500 mt-1">{sampleFormat.formatName} - {country}</div>
+        {/* Signal Trading */}
+        <div className={cn(
+          "rounded-2xl p-5 flex items-center gap-5 border-2 shadow-sm",
+          signal.type === "BUY" ? "bg-emerald-50 border-emerald-300" :
+          signal.type === "SELL" ? "bg-red-50 border-red-300" :
+          "bg-gray-50 border-gray-300"
+        )}>
+          <div className={cn(
+            "text-4xl font-black px-6 py-3 rounded-xl shadow-md",
+            signal.type === "BUY" ? "bg-emerald-500 text-white" :
+            signal.type === "SELL" ? "bg-red-500 text-white" :
+            "bg-gray-400 text-white"
+          )}>
+            {signal.type === "BUY" ? "🟢" : signal.type === "SELL" ? "🔴" : "⏸️"}
+          </div>
+          <div className="flex-1">
+            <div className={cn(
+              "text-2xl font-black mb-1",
+              signal.type === "BUY" ? "text-emerald-900" :
+              signal.type === "SELL" ? "text-red-900" :
+              "text-gray-900"
+            )}>
+              {signal.label}
             </div>
-            <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider pl-2">Période:</span>
-              <select 
-                className="text-sm border-none bg-transparent focus:ring-0 outline-none font-bold text-blue-600 cursor-pointer"
-                value={timeRange} onChange={(e) => setTimeRange(e.target.value)}
-              >
-                <option>Week -1</option>
-                <option>Month -1</option>
-                <option>Months -6</option>
-                <option>Year -1</option>
-              </select>
+            <div className={cn(
+              "text-sm font-medium",
+              signal.type === "BUY" ? "text-emerald-700" :
+              signal.type === "SELL" ? "text-red-700" :
+              "text-gray-700"
+            )}>
+              {signal.reason}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">RSI (14)</div>
+            <div className={cn(
+              "text-3xl font-black",
+              stats.rsi < 30 ? "text-emerald-600" :
+              stats.rsi > 70 ? "text-red-600" :
+              "text-gray-600"
+            )}>
+              {stats.rsi.toFixed(0)}
+            </div>
+          </div>
+        </div>
+
+        {/* Comparaison vs Ton Cost */}
+        {comparison && (
+          <div className={cn(
+            "rounded-2xl p-5 border-2 flex items-center justify-between",
+            comparison.status === "excellent" ? "bg-emerald-50 border-emerald-300" :
+            comparison.status === "good" ? "bg-blue-50 border-blue-300" :
+            comparison.status === "warning" ? "bg-amber-50 border-amber-300" :
+            "bg-red-50 border-red-300"
+          )}>
+            <div>
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                Ton CPM Cost vs Marché
+              </div>
+              <div className={cn(
+                "text-2xl font-black",
+                comparison.status === "excellent" ? "text-emerald-600" :
+                comparison.status === "good" ? "text-blue-600" :
+                comparison.status === "warning" ? "text-amber-600" :
+                "text-red-600"
+              )}>
+                {comparison.diffPct > 0 ? "+" : ""}{comparison.diffPct.toFixed(1)}%
+              </div>
+              <div className={cn(
+                "text-sm font-medium mt-1",
+                comparison.status === "excellent" ? "text-emerald-700" :
+                comparison.status === "good" ? "text-blue-700" :
+                comparison.status === "warning" ? "text-amber-700" :
+                "text-red-700"
+              )}>
+                {comparison.message}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-gray-500 font-bold mb-1">Ton Cost</div>
+              <div className="text-2xl font-black text-gray-900">
+                {currentCost.toFixed(2)} €
+              </div>
+              <div className="text-xs text-gray-500 font-bold mt-2">Marché</div>
+              <div className="text-lg font-bold text-gray-700">
+                {marketPrice.toFixed(2)} €
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Graphique */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+            <h3 className="text-lg font-bold text-gray-900">Évolution du Prix Open Web</h3>
+            <div className="text-sm text-gray-600 mt-1">
+              {format} • {country} • Derniers {timeRange} jours
             </div>
           </div>
           <div className="p-6">
@@ -249,52 +323,135 @@ export function MarketWatch({ currentCost }: MarketWatchProps) {
                 <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={false} axisLine={false} tickLine={false} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={(val) => `${val.toFixed(2)}€`} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                    formatter={(value: number, name: string) => [`${value.toFixed(2)} €`, name === "price" ? "Prix" : "MA"]}
-                    labelFormatter={() => ""}
+                  <XAxis 
+                    dataKey="dateLabel" 
+                    tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    interval={Math.floor(chartData.length / 8)}
                   />
-                  <Area type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorPrice)" />
-                  <Area type="monotone" dataKey="ma" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fill="none" />
+                  <YAxis 
+                    tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tickFormatter={(val) => `${val.toFixed(2)}€`}
+                    domain={['auto', 'auto']}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0', 
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', 
+                      fontWeight: 'bold',
+                      fontSize: '13px'
+                    }}
+                    formatter={(value: number, name: string) => [
+                      `${value.toFixed(2)} €`, 
+                      name === "price" ? "Prix" : "MA7"
+                    ]}
+                    labelFormatter={(label, payload) => {
+                      if (payload && payload[0]) {
+                        return new Date(payload[0].payload.fullDate).toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        });
+                      }
+                      return label;
+                    }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="price" 
+                    stroke="#3b82f6" 
+                    strokeWidth={3} 
+                    fillOpacity={1} 
+                    fill="url(#colorPrice)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="ma7" 
+                    stroke="#f59e0b" 
+                    strokeWidth={2} 
+                    strokeDasharray="5 5" 
+                    fill="none" 
+                  />
+                  {currentCost > 0 && (
+                    <ReferenceLine 
+                      y={currentCost} 
+                      stroke="#ef4444" 
+                      strokeWidth={2}
+                      strokeDasharray="3 3"
+                      label={{ 
+                        value: 'Ton Cost', 
+                        position: 'right',
+                        fill: '#ef4444',
+                        fontWeight: 'bold',
+                        fontSize: 12
+                      }}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-6">
-          <MetricCard title="Prix Actuel" value={`${currentPrice.toFixed(2)} €`} />
-          <MetricCard title="Plus Bas" value={`${minPrice.toFixed(2)} €`} subValue={`${((currentPrice/minPrice - 1)*100).toFixed(1)}%`} />
-          <MetricCard title="Plus Haut" value={`${maxPrice.toFixed(2)} €`} subValue={`${((currentPrice/maxPrice - 1)*100).toFixed(1)}%`} />
-          <MetricCard title="Volatilité (σ)" value={`${(maxPrice - minPrice).toFixed(2)} €`} />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-4 gap-5">
+          <MetricCard 
+            title="Prix Actuel" 
+            value={`${marketPrice.toFixed(2)} €`}
+            icon={DollarSign}
+            color="blue"
+          />
+          <MetricCard 
+            title="Plus Bas" 
+            value={`${stats.min.toFixed(2)} €`}
+            subValue={`${((marketPrice/stats.min - 1)*100).toFixed(1)}% vs min`}
+            icon={TrendingDown}
+            color="emerald"
+          />
+          <MetricCard 
+            title="Plus Haut" 
+            value={`${stats.max.toFixed(2)} €`}
+            subValue={`${((marketPrice/stats.max - 1)*100).toFixed(1)}% vs max`}
+            icon={TrendingUp}
+            color="red"
+          />
+          <MetricCard 
+            title="Tendance" 
+            value={`${stats.priceChange > 0 ? "+" : ""}${stats.priceChange.toFixed(1)}%`}
+            subValue={`sur ${timeRange}j`}
+            icon={Activity}
+            color={stats.priceChange > 0 ? "emerald" : "red"}
+          />
         </div>
 
-        {/* Advice */}
+        {/* Conseil Trader */}
         <div className={cn(
-          "p-6 rounded-2xl border flex items-start gap-5",
-          priceChange > 5 ? "bg-amber-50 border-amber-100 text-amber-900" : 
-          priceChange < -5 ? "bg-emerald-50 border-emerald-100 text-emerald-900" : 
-          "bg-blue-50 border-blue-100 text-blue-900"
+          "p-6 rounded-2xl border-2 flex items-start gap-5",
+          stats.priceChange > 5 ? "bg-amber-50 border-amber-300" : 
+          stats.priceChange < -5 ? "bg-emerald-50 border-emerald-300" : 
+          "bg-blue-50 border-blue-300"
         )}>
-          <div className="text-3xl mt-1 bg-white p-3 rounded-xl shadow-sm">
-            {priceChange > 5 ? "📈" : priceChange < -5 ? "📉" : "⚖️"}
+          <div className="text-4xl mt-1 bg-white p-4 rounded-xl shadow-sm">
+            {stats.priceChange > 5 ? "📈" : stats.priceChange < -5 ? "📉" : "⚖️"}
           </div>
           <div>
-            <h4 className="font-black text-lg mb-2">Conseil Trader</h4>
-            <p className="text-sm font-medium leading-relaxed opacity-90">
-              {priceChange > 5 
-                ? `Tendance Haussière (+${priceChange.toFixed(1)}%) : Le marché s'apprécie. Si tu as du budget restant, achète maintenant avant que ça monte encore.` 
-                : priceChange < -5 
-                ? `Tendance Baissière (${priceChange.toFixed(1)}%) : Le marché est en correction. Augmente ta marge ou attends encore pour acheter moins cher.` 
-                : `Marché Stable (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%) : Prix dans la fourchette normale. Continue ton trading habituel.`}
+            <h4 className="font-black text-xl mb-2 text-gray-900">Conseil Trader</h4>
+            <p className="text-sm font-medium leading-relaxed text-gray-700">
+              {stats.priceChange > 5 
+                ? `Tendance Haussière (+${stats.priceChange.toFixed(1)}%) : Le marché s'apprécie. Si tu as du budget restant, achète maintenant avant que les prix montent encore. RSI à ${stats.rsi.toFixed(0)}.` 
+                : stats.priceChange < -5 
+                ? `Tendance Baissière (${stats.priceChange.toFixed(1)}%) : Le marché est en correction. C'est le bon moment pour augmenter ta marge ou attendre encore pour acheter moins cher. RSI à ${stats.rsi.toFixed(0)}.` 
+                : `Marché Stable (${stats.priceChange > 0 ? '+' : ''}${stats.priceChange.toFixed(1)}%) : Prix dans la fourchette normale. Continue ton trading habituel. RSI équilibré à ${stats.rsi.toFixed(0)}.`}
             </p>
           </div>
         </div>
@@ -304,14 +461,38 @@ export function MarketWatch({ currentCost }: MarketWatchProps) {
   );
 }
 
-function MetricCard({ title, value, subValue }: { title: string, value: string, subValue?: string }) {
+function MetricCard({ 
+  title, 
+  value, 
+  subValue, 
+  icon: Icon, 
+  color 
+}: { 
+  title: string; 
+  value: string; 
+  subValue?: string; 
+  icon: any; 
+  color: string;
+}) {
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</div>
-      <div className="mt-3 flex items-baseline gap-3">
-        <div className="text-3xl font-black text-gray-900">{value}</div>
-        {subValue && <div className="text-sm font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded-md">{subValue}</div>}
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</div>
+        <div className={cn(
+          "w-9 h-9 rounded-xl flex items-center justify-center",
+          color === "blue" && "bg-blue-50 text-blue-600",
+          color === "emerald" && "bg-emerald-50 text-emerald-600",
+          color === "red" && "bg-red-50 text-red-600"
+        )}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
+      <div className="text-2xl font-black text-gray-900">{value}</div>
+      {subValue && (
+        <div className="text-xs font-medium text-gray-500 mt-2 bg-gray-50 px-2 py-1 rounded-md inline-block">
+          {subValue}
+        </div>
+      )}
     </div>
   );
 }
