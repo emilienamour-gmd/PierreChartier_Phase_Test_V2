@@ -1077,12 +1077,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               <Line type="monotone" dataKey="Optimisé" stroke="#3b82f6" strokeWidth={3} strokeDasharray="5 5" dot={false} />
                             </LineChart>
                           </ResponsiveContainer>
-                        );
-                      })()}
-                    </div>
-                  </div>
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
               {activeTab === "multilines" && (
                 <div className="space-y-6">
