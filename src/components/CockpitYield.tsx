@@ -24,15 +24,39 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
 
-  // 🆕 Synchroniser uplift quand on change de projet
   useEffect(() => {
     setUplift(project.uplift ?? 3.0);
   }, [project.id]);
 
-  // 🆕 Fonction pour sauvegarder uplift dans le projet
   const updateUplift = (newUplift: number) => {
     setUplift(newUplift);
     updateField("uplift", newUplift);
+  };
+
+  const applyMarginChange = () => {
+    if (uplift === 0) {
+      alert("Aucun changement de marge à appliquer.");
+      return;
+    }
+    
+    const action = uplift > 0 ? "MARGIN_UP" : "MARGIN_DOWN";
+    const note = uplift > 0 
+      ? `Augmentation de marge : +${uplift.toFixed(1)} points` 
+      : `Baisse de marge : ${uplift.toFixed(1)} points`;
+    
+    const snapshot = createSnapshot(action, note);
+    const newHistory = [...(project.history || []), snapshot];
+    
+    onChange({
+      ...project,
+      history: newHistory,
+      updatedAt: new Date().toISOString()
+    });
+    
+    setUplift(0);
+    updateField("uplift", 0);
+    
+    alert(`✅ Changement de marge enregistré dans l'historique !`);
   };
 
   const toggleLock = (id: string) => {
@@ -48,7 +72,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     onChange({ ...project, [field]: value, updatedAt: new Date().toISOString() });
   };
 
-  // FONCTION : Créer un snapshot d'historique
   const createSnapshot = (action: ProjectSnapshot["action"], note?: string): ProjectSnapshot => {
     const marginPct = project.inputMode === "CPM Cost" 
       ? ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100
@@ -242,7 +265,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   const applyOptimizations = () => {
     if (proposedOptimizations) {
-      // CRÉATION DU SNAPSHOT
       const snapshot = createSnapshot(
         "OPTIMIZATION",
         `Optimisation multi-lines : ${marginGoal === "increase" ? "Augmentation" : "Baisse"} de marge`
@@ -617,6 +639,39 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </div>
                       );
                     })()}
+                  </div>
+
+                  {/* Bouton Appliquer Changement de Marge */}
+                  <div className="flex justify-end">
+                    <button 
+                      onClick={applyMarginChange}
+                      disabled={uplift === 0}
+                      className={cn(
+                        "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm",
+                        uplift === 0 
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                          : uplift > 0 
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : "bg-amber-600 text-white hover:bg-amber-700"
+                      )}
+                    >
+                      {uplift > 0 ? (
+                        <>
+                          <TrendingUp className="w-4 h-4" />
+                          📈 Appliquer Hausse
+                        </>
+                      ) : uplift < 0 ? (
+                        <>
+                          <TrendingDown className="w-4 h-4" />
+                          📉 Appliquer Baisse
+                        </>
+                      ) : (
+                        <>
+                          <Minus className="w-4 h-4" />
+                          Aucun changement
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* Options 1 & 2 */}
@@ -1213,7 +1268,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                 </div>
               )}
 
-              {/* 🆕 ONGLET HISTORIQUE */}
               {activeTab === "historique" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -1233,7 +1287,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </div>
                   ) : (
                     <>
-                      {/* Timeline visuelle */}
                       <div className="relative">
                         <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
                         <div className="space-y-6">
@@ -1325,7 +1378,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </div>
                       </div>
 
-                      {/* Graphique d'évolution */}
                       <div className="bg-white border border-gray-100 rounded-xl p-6 mt-8">
                         <h4 className="font-bold text-gray-900 mb-4">Évolution de la Marge</h4>
                         <div className="h-64">
