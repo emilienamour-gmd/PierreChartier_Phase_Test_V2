@@ -1422,13 +1422,3 @@ function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: str
     </div>
   );
 }
-
-print("✅ Fichier CockpitYield_COMPLET.tsx créé avec succès !")
-print("\n📝 Modifications appliquées :")
-print("   1. Ligne 22 : const [uplift, setUplift] = useState(project.uplift ?? 3.0);")
-print("   2. Lignes 28-31 : useEffect pour synchroniser uplift au changement de projet")
-print("   3. Lignes 33-36 : Fonction updateUplift() pour sauvegarder dans le projet")
-print("   4. Ligne ~535 : onChange={(e) => updateUplift(Number(e.target.value))}")
-print("\n💡 Le slider de marge est maintenant persistant !")
-print("   Quand tu bouges le slider → sauvegarde automatique")
-print("   Quand tu reviens sur un projet → le slider est au bon endroit")
