@@ -67,6 +67,47 @@ function saveCurrentUser(profile: UserProfile | null) {
   }
 }
 
+// 👇 COMPTES PAR DÉFAUT 👇
+const DEFAULT_ACCOUNTS: StoredUser[] = [
+  {
+    username: "eagmd",
+    password: "gmd",
+    profile: {
+      name: "EAGMD",
+      initials: "EA",
+      theme: "salesin"
+    }
+  },
+  {
+    username: "tfgmd",
+    password: "gmd",
+    profile: {
+      name: "TFGMD",
+      initials: "TF",
+      theme: "salesin"
+    }
+  },
+  {
+    username: "aygmd",
+    password: "gmd",
+    profile: {
+      name: "AYGMD",
+      initials: "AY",
+      theme: "salesin"
+    }
+  }
+];
+
+// Initialiser les comptes au premier chargement
+if (typeof window !== 'undefined') {
+  const users = getUsers();
+  if (users.length === 0) {
+    saveUsers(DEFAULT_ACCOUNTS);
+    console.log("✅ Comptes par défaut créés");
+  }
+}
+// 👆 FIN COMPTES PAR DÉFAUT 👆
+
 // Création du store
 export const useUserStore = create<UserStore>()(
   persist(
