@@ -1,3 +1,5 @@
+// src/types.ts
+
 export interface LineItem {
   id: string;
   name: string;
@@ -7,8 +9,20 @@ export interface LineItem {
   kpiActual: number;
 }
 
+// NOUVEAU : Snapshot d'historique
+export interface ProjectSnapshot {
+  timestamp: string; // ISO date
+  budgetSpent: number;
+  marginPct: number;
+  cpmCostActuel: number;
+  cpmRevenueActual: number;
+  actualKpi: number;
+  gainRealized: number;
+  action: "SAVE" | "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION";
+  note?: string;
+}
+
 export interface ProjectData {
-  id: string;
   name: string;
   currency: string;
   budgetTotal: number;
@@ -16,35 +30,16 @@ export interface ProjectData {
   durationDays: number;
   cpmSoldCap: number;
   cpmRevenueActual: number;
-  inputMode: "CPM Cost" | "Marge %";
   cpmCostActuel: number;
   margeInput: number;
+  inputMode: "CPM Cost" | "Marge %";
   kpiType: string;
   targetKpi: number;
   actualKpi: number;
   lineItems: LineItem[];
-  lastModified: number;
+  
+  // NOUVEAU : Historique
+  history: ProjectSnapshot[];
+  createdAt?: string;
+  updatedAt?: string;
 }
-
-export const DEFAULT_PROJECT: ProjectData = {
-  id: "",
-  name: "Nouveau Projet",
-  currency: "€ (EUR)",
-  budgetTotal: 0,
-  budgetSpent: 0,
-  durationDays: 30,
-  cpmSoldCap: 0,
-  cpmRevenueActual: 0,
-  inputMode: "CPM Cost",
-  cpmCostActuel: 0,
-  margeInput: 0,
-  kpiType: "CPM",
-  targetKpi: 0,
-  actualKpi: 0,
-  lineItems: [
-    { id: "1", name: "LI - Retargeting", spend: 200, cpmRevenue: 0, marginPct: 50, kpiActual: 0 },
-    { id: "2", name: "LI - Prospecting", spend: 500, cpmRevenue: 0, marginPct: 25, kpiActual: 0 },
-    { id: "3", name: "LI - Mobile", spend: 100, cpmRevenue: 0, marginPct: 35, kpiActual: 0 },
-  ],
-  lastModified: Date.now(),
-};
