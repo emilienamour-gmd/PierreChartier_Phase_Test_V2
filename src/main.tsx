@@ -9,9 +9,10 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserStore();
   
   useEffect(() => {
-    // Appliquer le thème au chargement et à chaque changement
-    document.documentElement.setAttribute('data-theme', user.theme);
-  }, [user.theme]);
+    // ✅ Protection ajoutée avec user?.theme et valeur par défaut
+    const theme = user?.theme || 'salesin';
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [user?.theme]);
   
   return <>{children}</>;
 }
