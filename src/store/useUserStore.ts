@@ -73,7 +73,7 @@ const DEFAULT_ACCOUNTS: StoredUser[] = [
     username: "eagmd",
     password: "gmd",
     profile: {
-      name: "EAGMD",
+      name: "eaGMD",
       initials: "EA",
       theme: "salesin"
     }
@@ -82,7 +82,7 @@ const DEFAULT_ACCOUNTS: StoredUser[] = [
     username: "tfgmd",
     password: "gmd",
     profile: {
-      name: "TFGMD",
+      name: "tfGMD",
       initials: "TF",
       theme: "salesin"
     }
@@ -91,7 +91,7 @@ const DEFAULT_ACCOUNTS: StoredUser[] = [
     username: "aygmd",
     password: "gmd",
     profile: {
-      name: "AYGMD",
+      name: "ayGMD",
       initials: "AY",
       theme: "salesin"
     }
