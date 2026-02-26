@@ -23,6 +23,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
+  useEffect(() => {
+  setUplift(project.uplift ?? 3.0);
+}, [project.id]);
+
+  const updateUplift = (newUplift: number) => {
+  setUplift(newUplift);
+  updateField("uplift", newUplift);
+};
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
