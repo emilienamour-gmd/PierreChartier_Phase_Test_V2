@@ -391,11 +391,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       <span className="text-xs font-bold">Je trade en Revenu</span>
     </button>
   </div>
-  <div className="mt-3 text-[10px] text-gray-600 bg-white/60 p-2 rounded-lg">
-    {project.inputMode === "CPM Cost" 
-      ? "🎯 Mode Cost : Vous saisissez le CPM d'achat, la marge se calcule automatiquement"
-      : "📊 Mode Revenu : Vous saisissez la marge %, le CPM Cost se calcule automatiquement"}
-  </div>
 </div>
 
         {/* 1. Campagne */}
@@ -1546,22 +1541,22 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
 function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: string, value: string, subValue?: string, accent: "indigo" | "emerald" | "red", icon: any }) {
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[140px]">
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</div>
+    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[110px]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{title}</div>
         <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center",
+          "w-8 h-8 rounded-lg flex items-center justify-center",
           accent === "indigo" ? "bg-blue-50 text-blue-600" :
           accent === "emerald" ? "bg-emerald-50 text-emerald-600" :
           "bg-red-50 text-red-600"
         )}>
-          <Icon className="w-5 h-5" />
+          <Icon className="w-4 h-4" />
         </div>
       </div>
       <div>
-        <div className="text-3xl font-black text-gray-900">{value}</div>
+        <div className="text-2xl font-black text-gray-900">{value}</div>
         {subValue && (
-          <div className={cn("text-sm font-bold mt-2 flex items-center gap-1", 
+          <div className={cn("text-xs font-bold mt-1.5 flex items-center gap-1", 
             accent === "emerald" ? "text-emerald-500" : 
             accent === "red" ? "text-red-500" : "text-gray-500"
           )}>
