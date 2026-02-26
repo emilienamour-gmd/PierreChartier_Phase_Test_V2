@@ -28,6 +28,26 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     setUplift(project.uplift ?? 3.0);
   }, [project.id]);
 
+  useEffect(() => {
+  if (!project.updatedAt || project.budgetTotal === 0 || project.durationDays === 0) return;
+  
+  const lastUpdate = new Date(project.updatedAt);
+  const now = new Date();
+  const daysElapsed = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (daysElapsed > 0 && project.budgetSpent < project.budgetTotal) {
+    const dailyBudget = project.budgetTotal / project.durationDays;
+    const actualDailySpend = dailyBudget * 1.10;
+    const additionalSpend = actualDailySpend * daysElapsed;
+    const newBudgetSpent = Math.min(project.budgetTotal, project.budgetSpent + additionalSpend);
+    
+    if (newBudgetSpent > project.budgetSpent) {
+      updateField("budgetSpent", newBudgetSpent);
+      console.log(`📅 ${daysElapsed} jours écoulés → Budget dépensé mis à jour : +${additionalSpend.toFixed(2)}€`);
+    }
+  }
+}, [project.id]);
+
   const updateUplift = (newUplift: number) => {
     setUplift(newUplift);
     updateField("uplift", newUplift);
