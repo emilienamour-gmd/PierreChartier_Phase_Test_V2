@@ -19,6 +19,12 @@ export interface ProjectSnapshot {
   note?: string;
 }
 
+export interface MarginPeriod {
+  startDate: string;
+  marginPct: number;
+  budgetSpentAtStart: number;
+}
+
 export interface ProjectData {
   id: string;
   name: string;
@@ -40,6 +46,7 @@ export interface ProjectData {
   updatedAt?: string;
   lastModified: number;
   uplift?: number;
+  marginPeriods?: MarginPeriod[];
 }
 
 export const DEFAULT_PROJECT: ProjectData = {
@@ -63,4 +70,8 @@ export const DEFAULT_PROJECT: ProjectData = {
   updatedAt: new Date().toISOString(),
   lastModified: 0,
   uplift: 3.0,
-};
+  marginPeriods: [],
+};'''
+
+with open('/mnt/data/types.ts', 'w', encoding='utf-8') as f:
+    f.write(types_code)
