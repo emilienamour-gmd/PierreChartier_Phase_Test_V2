@@ -720,11 +720,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   {(() => {
   const newMargin = currentMarginPctCalc + uplift;
   const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
-  
-  // 👇 NOUVEAU CALCUL POUR MODE COST 👇
+
+  // 👆 NOUVEAU CALCUL POUR MODE COST 👆
   const budgetRestant = project.budgetTotal - project.budgetSpent;
   let costDSP = 0;
-  
+
   if (project.inputMode === "CPM Cost") {
     if (uplift >= 0) {
       // HAUSSE de marge : Cost DSP = Budget restant * (1 - nouvelle marge)
@@ -736,7 +736,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       costDSP = costDejaDépensé + costRestant;
     }
   }
-  
+
   return (
     <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
       <div>
@@ -747,7 +747,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         <ArrowRight className="w-6 h-6" />
       </div>
       <div className="text-right">
-        {/* 👇 AFFICHAGE CONDITIONNEL 👇 */}
+        {/* 👆 AFFICHAGE CONDITIONNEL 👆 */}
         {project.inputMode === "CPM Cost" ? (
           <>
             <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Cost dans le DSP</div>
