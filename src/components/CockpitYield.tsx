@@ -1422,9 +1422,7 @@ function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: str
     </div>
   );
 }
-'''
 
-# Écrire le fichier
 with open('/mnt/data/CockpitYield_COMPLET.tsx', 'w', encoding='utf-8') as f:
     f.write(code)
 
