@@ -20,6 +20,32 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
+  const calculateWeightedMargin = (): number => {
+  if (!project.marginPeriods || project.marginPeriods.length === 0) {
+    return currentMarginPctCalc;
+  }
+  
+  let totalGain = 0;
+  let totalSpent = 0;
+  
+  for (let i = 0; i < project.marginPeriods.length; i++) {
+    const period = project.marginPeriods[i];
+    const nextPeriod = project.marginPeriods[i + 1];
+    
+    const budgetInPeriod = nextPeriod 
+      ? nextPeriod.budgetSpentAtStart - period.budgetSpentAtStart
+      : project.budgetSpent - period.budgetSpentAtStart;
+    
+    const gainInPeriod = budgetInPeriod * (period.marginPct / 100);
+    
+    totalGain += gainInPeriod;
+    totalSpent += budgetInPeriod;
+  }
+  
+  return totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
+};
+
+const displayMargin = calculateWeightedMargin();
 
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
@@ -80,15 +106,24 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     note: note
   };
   
+  const newPeriod: MarginPeriod = {
+    startDate: new Date().toISOString(),
+    marginPct: newMarginPct,
+    budgetSpentAtStart: project.budgetSpent
+  };
+  
   const newHistory = [...(project.history || []), snapshot];
+  const newMarginPeriods = [...(project.marginPeriods || []), newPeriod];
   
   onChange({
     ...project,
     history: newHistory,
+    marginPeriods: newMarginPeriods,
+    margeInput: newMarginPct,
     updatedAt: new Date().toISOString()
   });
   
-  alert(`✅ Changement de marge enregistré dans l'historique !`);
+  alert(`✅ Changement de marge enregistré !`);
 };
 
   const toggleLock = (id: string) => {
@@ -558,12 +593,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
               accent="indigo"
             />
             <MetricCard 
-              title="Marge Actuelle" 
-              value={`${dispMargin.toFixed(2)} %`} 
-              subValue={`${margeEuroDisp.toFixed(2)} ${currSym}`}
-              icon={Percent}
-              accent="emerald"
-            />
+  title="Marge Actuelle" 
+  value={`${displayMargin.toFixed(2)} %`}  // 🔄 REMPLACER dispMargin par displayMargin
+  subValue={`${margeEuroDisp.toFixed(2)} ${currSym}`}
+  icon={Percent}
+  accent="emerald"
+/>
             <MetricCard 
               title={`KPI ${project.kpiType}`} 
               value={isFin ? `${fmtKpi(dispKpi)} ${currSym}` : `${(dispKpi * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} ${project.kpiType === "CTR" ? "%" : ""}`} 
