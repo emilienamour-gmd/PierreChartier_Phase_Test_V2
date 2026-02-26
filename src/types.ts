@@ -71,7 +71,4 @@ export const DEFAULT_PROJECT: ProjectData = {
   lastModified: 0,
   uplift: 3.0,
   marginPeriods: [],
-};'''
-
-with open('/mnt/data/types.ts', 'w', encoding='utf-8') as f:
-    f.write(types_code)
+};
