@@ -1,3 +1,6 @@
+window.print = () => {
+  console.trace("🖨️ PRINT appelé depuis :");
+};
 import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { CockpitYield } from "./components/CockpitYield";
