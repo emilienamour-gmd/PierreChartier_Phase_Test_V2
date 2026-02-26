@@ -1,6 +1,6 @@
 import { ProjectData } from "../types";
 import { cn } from "../utils/cn";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { Trophy, TrendingUp, DollarSign, Percent } from "lucide-react";
 
 interface PortfolioProps {
@@ -57,6 +57,9 @@ export function Portfolio({ projects }: PortfolioProps) {
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+  // DEVISE PRINCIPALE (la plus commune)
+  const mainCurrency = portfolioData.length > 0 ? portfolioData[0].currency : "€";
+
   return (
     <div className="p-8 bg-slate-50 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -68,9 +71,10 @@ export function Portfolio({ projects }: PortfolioProps) {
 
         {/* Global Metrics */}
         <div className="grid grid-cols-4 gap-4">
-          <MetricCard title="Budget Total Géré" value={`${totalBudget.toLocaleString()} €`} icon={DollarSign} accent="blue" />
-          <MetricCard title="Gain Déjà Réalisé" value={`${totalGainRealized.toLocaleString()} €`} icon={TrendingUp} accent="emerald" />
-          <MetricCard title="Gain Total Projeté" value={`${totalGainProjected.toLocaleString()} €`} icon={Trophy} accent="amber" />
+          <MetricCard title="Budget Total Géré" value={`${totalBudget.toLocaleString()} ${mainCurrency}`} icon={DollarSign} accent="blue" />
+          {/* ✅ GAIN RÉALISÉ : Sans décimale */}
+          <MetricCard title="Gain Déjà Réalisé" value={`${totalGainRealized.toFixed(0)} ${mainCurrency}`} icon={TrendingUp} accent="emerald" />
+          <MetricCard title="Gain Total Projeté" value={`${totalGainProjected.toFixed(0)} ${mainCurrency}`} icon={Trophy} accent="amber" />
           <MetricCard title="Marge Moyenne" value={`${avgMargin.toFixed(2)} %`} icon={Percent} accent="purple" />
         </div>
 
@@ -93,22 +97,44 @@ export function Portfolio({ projects }: PortfolioProps) {
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">💰 Plus Gros Gain</div>
               <div className="text-lg font-bold text-slate-800">{bestGainProj.name}</div>
-              <div className="text-sm text-blue-600 font-medium">{bestGainProj.gainTotal.toLocaleString()} {bestGainProj.currency}</div>
+              <div className="text-sm text-blue-600 font-medium">{bestGainProj.gainTotal.toFixed(0)} {bestGainProj.currency}</div>
             </div>
           </div>
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-2 gap-6">
+          {/* ✅ GRAPHIQUE AMÉLIORÉ : Devise visible + meilleure mise en forme */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6">Gains Projetés par Projet</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={portfolioData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={100} />
-                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <XAxis 
+                    type="number" 
+                    tick={{ fontSize: 12, fill: '#64748b' }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    tickFormatter={(val) => `${val.toLocaleString()} ${mainCurrency}`}
+                  />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    tick={{ fontSize: 12, fill: '#64748b' }} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    width={120} 
+                  />
+                  <Tooltip 
+                    cursor={{fill: '#f8fafc'}} 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '13px', fontWeight: 'bold' }}
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value.toFixed(0)} ${props.payload.currency}`,
+                      "Gain Total"
+                    ]}
+                    labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
+                  />
                   <Bar dataKey="gainTotal" fill="#10b981" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -132,7 +158,13 @@ export function Portfolio({ projects }: PortfolioProps) {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '13px', fontWeight: 'bold' }}
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value.toFixed(0)} ${props.payload.currency}`,
+                      props.payload.name
+                    ]}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -164,8 +196,8 @@ export function Portfolio({ projects }: PortfolioProps) {
                     <td className="px-6 py-4 text-slate-600">{p.budgetTotal.toLocaleString()} {p.currency}</td>
                     <td className="px-6 py-4 text-slate-600">{p.budgetSpent.toLocaleString()} {p.currency}</td>
                     <td className="px-6 py-4 text-slate-600 font-medium">{p.marginPct.toFixed(2)} %</td>
-                    <td className="px-6 py-4 text-emerald-600 font-medium">{p.gainRealized.toLocaleString()} {p.currency}</td>
-                    <td className="px-6 py-4 text-emerald-600 font-bold">{p.gainTotal.toLocaleString()} {p.currency}</td>
+                    <td className="px-6 py-4 text-emerald-600 font-medium">{p.gainRealized.toFixed(0)} {p.currency}</td>
+                    <td className="px-6 py-4 text-emerald-600 font-bold">{p.gainTotal.toFixed(0)} {p.currency}</td>
                     <td className="px-6 py-4 text-slate-600">{p.kpiType}</td>
                   </tr>
                 ))}
