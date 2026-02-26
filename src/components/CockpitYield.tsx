@@ -1,4 +1,6 @@
-import { useState, ChangeEvent } from "react";
+# Création du fichier CockpitYield.tsx complet avec les modifications pour sauvegarder uplift
+
+code = '''import { useState, ChangeEvent, useEffect } from "react";
 import { ProjectData, LineItem, ProjectSnapshot } from "../types";
 import { cn } from "../utils/cn";
 import { 
@@ -15,7 +17,7 @@ interface CockpitYieldProps {
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
-  const [uplift, setUplift] = useState(3.0);
+  const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
@@ -23,14 +25,17 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
-  useEffect(() => {
-  setUplift(project.uplift ?? 3.0);
-}, [project.id]);
 
+  // 🆕 Synchroniser uplift quand on change de projet
+  useEffect(() => {
+    setUplift(project.uplift ?? 3.0);
+  }, [project.id]);
+
+  // 🆕 Fonction pour sauvegarder uplift dans le projet
   const updateUplift = (newUplift: number) => {
-  setUplift(newUplift);
-  updateField("uplift", newUplift);
-};
+    setUplift(newUplift);
+    updateField("uplift", newUplift);
+  };
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -592,7 +597,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       type="range" min="-20" max="20" step="0.2"
                       className={cn("w-full", uplift >= 0 ? "accent-blue-600" : "accent-red-600")}
                       value={uplift}
-                      onChange={(e) => setUplift(Number(e.target.value))}
+                      onChange={(e) => updateUplift(Number(e.target.value))}
                     />
                     
                     {(() => {
@@ -616,7 +621,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     })()}
                   </div>
 
-                  {/* Options 1 & 2 - I'll keep these parts unchanged as they're working well */}
+                  {/* Options 1 & 2 */}
                   <div className="grid grid-cols-2 gap-6">
                     {/* Option 1 */}
                     <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
@@ -685,7 +690,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       })()}
                     </div>
 
-                    {/* Option 2 - similar structure, keeping existing logic */}
+                    {/* Option 2 */}
                     <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                       <h4 className="text-amber-900 font-bold text-base mb-2">
@@ -695,7 +700,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
                       </p>
                       
-                      {/* ... (keeping the Option 2 logic exactly as is) ... */}
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
                         const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
@@ -1420,3 +1424,18 @@ function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: str
     </div>
   );
 }
+'''
+
+# Écrire le fichier
+with open('/mnt/data/CockpitYield_COMPLET.tsx', 'w', encoding='utf-8') as f:
+    f.write(code)
+
+print("✅ Fichier CockpitYield_COMPLET.tsx créé avec succès !")
+print("\n📝 Modifications appliquées :")
+print("   1. Ligne 22 : const [uplift, setUplift] = useState(project.uplift ?? 3.0);")
+print("   2. Lignes 28-31 : useEffect pour synchroniser uplift au changement de projet")
+print("   3. Lignes 33-36 : Fonction updateUplift() pour sauvegarder dans le projet")
+print("   4. Ligne ~535 : onChange={(e) => updateUplift(Number(e.target.value))}")
+print("\n💡 Le slider de marge est maintenant persistant !")
+print("   Quand tu bouges le slider → sauvegarde automatique")
+print("   Quand tu reviens sur un projet → le slider est au bon endroit")
