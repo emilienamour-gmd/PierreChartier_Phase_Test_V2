@@ -1423,9 +1423,6 @@ function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: str
   );
 }
 
-with open('/mnt/data/CockpitYield_COMPLET.tsx', 'w', encoding='utf-8') as f:
-    f.write(code)
-
 print("✅ Fichier CockpitYield_COMPLET.tsx créé avec succès !")
 print("\n📝 Modifications appliquées :")
 print("   1. Ligne 22 : const [uplift, setUplift] = useState(project.uplift ?? 3.0);")
