@@ -360,8 +360,46 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             <Settings className="w-5 h-5 text-blue-600" />
             Paramètres
           </div>
+               <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+  <div className="text-xs font-bold text-blue-900 mb-3 uppercase tracking-wider">
+    Mode de Trading
+  </div>
+  <div className="grid grid-cols-2 gap-3">
+    <button
+      onClick={() => onChange({ ...project, inputMode: "CPM Cost" })}
+      className={cn(
+        "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all",
+        project.inputMode === "CPM Cost"
+          ? "border-blue-600 bg-blue-100 text-blue-900 shadow-md"
+          : "border-blue-200 bg-white text-gray-600 hover:border-blue-400 hover:bg-blue-50"
+      )}
+    >
+      <DollarSign className="w-5 h-5" />
+      <span className="text-xs font-bold">Je trade en Cost</span>
+    </button>
+    
+    <button
+      onClick={() => onChange({ ...project, inputMode: "Marge %" })}
+      className={cn(
+        "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all",
+        project.inputMode === "Marge %"
+          ? "border-emerald-600 bg-emerald-100 text-emerald-900 shadow-md"
+          : "border-emerald-200 bg-white text-gray-600 hover:border-emerald-400 hover:bg-emerald-50"
+      )}
+    >
+      <Percent className="w-5 h-5" />
+      <span className="text-xs font-bold">Je trade en Revenu</span>
+    </button>
+  </div>
+  <div className="mt-3 text-[10px] text-gray-600 bg-white/60 p-2 rounded-lg">
+    {project.inputMode === "CPM Cost" 
+      ? "🎯 Mode Cost : Vous saisissez le CPM d'achat, la marge se calcule automatiquement"
+      : "📊 Mode Revenu : Vous saisissez la marge %, le CPM Cost se calcule automatiquement"}
+  </div>
+</div>
 
         {/* 1. Campagne */}
+               
         <div className="space-y-4">
           <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
           <div>
