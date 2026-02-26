@@ -1,9 +1,3 @@
-console.log("🚀 App chargée");
-
-const originalPrint = window.print;
-window.print = function() {
-  console.trace("🖨️ PRINT appelé depuis :");
-};
 import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { CockpitYield } from "./components/CockpitYield";
