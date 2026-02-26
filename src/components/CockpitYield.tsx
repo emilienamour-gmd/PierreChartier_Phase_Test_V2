@@ -716,8 +716,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       value={uplift}
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
-
-                         {/* DÉBUT DU BLOC CALCULÉ (À coller après la ligne 718) */}
           {(() => {
             const newMargin = currentMarginPctCalc + uplift;
             const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
