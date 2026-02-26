@@ -34,30 +34,42 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   };
 
   const applyMarginChange = () => {
-    if (uplift === 0) {
-      alert("Aucun changement de marge à appliquer.");
-      return;
-    }
-    
-    const action = uplift > 0 ? "MARGIN_UP" : "MARGIN_DOWN";
-    const note = uplift > 0 
-      ? `Augmentation de marge : +${uplift.toFixed(1)} points` 
-      : `Baisse de marge : ${uplift.toFixed(1)} points`;
-    
-    const snapshot = createSnapshot(action, note);
-    const newHistory = [...(project.history || []), snapshot];
-    
-    onChange({
-      ...project,
-      history: newHistory,
-      updatedAt: new Date().toISOString()
-    });
-    
-    setUplift(0);
-    updateField("uplift", 0);
-    
-    alert(`✅ Changement de marge enregistré dans l'historique !`);
+  if (uplift === 0) {
+    alert("Aucun changement de marge à appliquer.");
+    return;
+  }
+  
+  const newMarginPct = currentMarginPctCalc + uplift;
+  
+  const action: "MARGIN_UP" | "MARGIN_DOWN" = uplift > 0 ? "MARGIN_UP" : "MARGIN_DOWN";
+  const note = uplift > 0 
+    ? `Augmentation de marge : +${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)` 
+    : `Baisse de marge : ${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)`;
+  
+  const snapshot: ProjectSnapshot = {
+    timestamp: new Date().toISOString(),
+    budgetSpent: project.budgetSpent,
+    marginPct: newMarginPct,
+    cpmCostActuel: project.inputMode === "CPM Cost" 
+      ? project.cpmCostActuel 
+      : project.cpmRevenueActual * (1 - newMarginPct / 100),
+    cpmRevenueActual: project.cpmRevenueActual,
+    actualKpi: project.actualKpi,
+    gainRealized: project.budgetSpent * (newMarginPct / 100),
+    action: action,
+    note: note
   };
+  
+  const newHistory = [...(project.history || []), snapshot];
+  
+  onChange({
+    ...project,
+    history: newHistory,
+    updatedAt: new Date().toISOString()
+  });
+  
+  alert(`✅ Changement de marge enregistré dans l'historique !`);
+};
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
