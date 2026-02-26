@@ -1,4 +1,7 @@
-window.print = () => {
+console.log("🚀 App chargée");
+
+const originalPrint = window.print;
+window.print = function() {
   console.trace("🖨️ PRINT appelé depuis :");
 };
 import { useState, useEffect } from "react";
