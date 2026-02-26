@@ -1,10 +1,10 @@
 import { useState, ChangeEvent } from "react";
-import { ProjectData, LineItem } from "../types";
+import { ProjectData, LineItem, ProjectSnapshot } from "../types";
 import { cn } from "../utils/cn";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -13,7 +13,7 @@ interface CockpitYieldProps {
 }
 
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
-  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines">("analyse");
+  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
   const [uplift, setUplift] = useState(3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -21,9 +21,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
 
-  // Fenêtres d'attribution en JOURS (Standard DSP)
-  const [attrClick, setAttrClick] = useState(7); // Défaut : 7 Jours
-  const [attrView, setAttrView] = useState(1);   // Défaut : 1 Jour (Standard)
+  const [attrClick, setAttrClick] = useState(7);
+  const [attrView, setAttrView] = useState(1);
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -35,7 +34,32 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const currSym = project.currency.includes("EUR") ? "€" : "$";
 
   const updateField = <K extends keyof ProjectData>(field: K, value: ProjectData[K]) => {
-    onChange({ ...project, [field]: value });
+    onChange({ ...project, [field]: value, updatedAt: new Date().toISOString() });
+  };
+
+  // FONCTION : Créer un snapshot d'historique
+  const createSnapshot = (action: ProjectSnapshot["action"], note?: string): ProjectSnapshot => {
+    const marginPct = project.inputMode === "CPM Cost" 
+      ? ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100
+      : project.margeInput;
+    
+    const cpmCost = project.inputMode === "CPM Cost" 
+      ? project.cpmCostActuel 
+      : project.cpmRevenueActual * (1 - project.margeInput / 100);
+    
+    const gainRealized = project.budgetSpent * (marginPct / 100);
+    
+    return {
+      timestamp: new Date().toISOString(),
+      budgetSpent: project.budgetSpent,
+      marginPct,
+      cpmCostActuel: cpmCost,
+      cpmRevenueActual: project.cpmRevenueActual,
+      actualKpi: project.actualKpi,
+      gainRealized,
+      action,
+      note
+    };
   };
 
   const budgetRemaining = project.budgetTotal - project.budgetSpent;
@@ -55,7 +79,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     cpmCostActuelCalc = project.cpmRevenueActual * (1 - project.margeInput / 100);
   }
 
-  // Weighted averages from table
   const totalSpendTable = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   let wMargin = currentMarginPctCalc;
   let wCpmRev = project.cpmRevenueActual;
@@ -122,7 +145,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
-    // Safety check
     const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
     const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
     const availableSpend = Math.max(0, totalSpend - lockedSpend);
@@ -133,9 +155,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       let perfRatio = 1;
       
-      // --- LOGIQUE KPI ---
       if (isFin) {
-        // Pour CPA, CPV : si actual est 0, c'est que 0 conversion => Ratio 0
         if (actual === 0) {
             perfRatio = 0; 
         } else {
@@ -147,8 +167,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       let allocationScore = 0;
       
-      // SI LE KPI EST A 0 (Aucune conversion), LE SCORE EST NUL
-      // On ne donne pas de budget à une ligne qui ne marche pas.
       if (perfRatio === 0) {
           allocationScore = 0; 
       } else {
@@ -169,28 +187,17 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       let newMargin = li.marginPct;
       let newSpend = li.spend || 0;
       
-      // --- CERVEAU TRADER EXPERT (RÈGLE MARGE) ---
-      
       if (isFin && li.perfRatio === 0) {
-          // CAS 1 : 0 Conversion (KPI = 0)
-          // RÈGLE : Interdiction formelle de monter la marge pour prendre du profit.
-          // On maintient la marge (Status Quo) ou on applique une légère pénalité technique.
           newMargin = li.marginPct; 
           
       } else if (li.perfRatio < 1.0) {
-          // CAS 2 : SOUS-PERFORMANCE (KPI > Objectif)
-          // RÈGLE : INTERDICTION DE MONTER LA MARGE
-          // Si on est pas dans les clous, on ne prend pas de profit.
           if (marginGoal === "increase") {
-              newMargin = li.marginPct; // On gèle.
+              newMargin = li.marginPct;
           } else {
-              // Si on veut booster, on baisse la marge
               newMargin = Math.max(5, li.marginPct - 5);
           }
           
       } else {
-          // CAS 3 : PERFORMANCE OK (KPI <= Objectif)
-          // Là on peut optimiser
           if (marginGoal === "increase") {
             if (li.perfRatio >= 1.2) newMargin += 5;
             else if (li.perfRatio >= 1.0) newMargin += 2;
@@ -200,15 +207,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           }
       }
       
-      // --- CERVEAU TRADER EXPERT (RÈGLE BUDGET) ---
       if (!lockedLines.has(li.id)) {
         if (isFin && li.perfRatio === 0) {
-            // CAS 1 : 0 Conversion
-            // SANCTION BUDGÉTAIRE MASSIVE : On ne laisse que le strict minimum (10% de l'actuel)
             newSpend = (li.spend || 0) * 0.1;
         } else {
             const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-            // Smoothing 
             newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
         }
       }
@@ -228,7 +231,21 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   const applyOptimizations = () => {
     if (proposedOptimizations) {
-      updateField("lineItems", proposedOptimizations);
+      // CRÉATION DU SNAPSHOT
+      const snapshot = createSnapshot(
+        "OPTIMIZATION",
+        `Optimisation multi-lines : ${marginGoal === "increase" ? "Augmentation" : "Baisse"} de marge`
+      );
+      
+      const newHistory = [...(project.history || []), snapshot];
+      
+      onChange({
+        ...project,
+        lineItems: proposedOptimizations,
+        history: newHistory,
+        updatedAt: new Date().toISOString()
+      });
+      
       setProposedOptimizations(null);
       alert("Optimisations appliquées avec succès.");
     }
@@ -374,7 +391,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </select>
           </div>
 
-          {/* FENÊTRES D'ATTRIBUTION (EN JOURS) */}
           {(project.kpiType === "CPA" || project.kpiType === "CPV" || project.kpiType === "CPL") && (
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 space-y-3">
               <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Fenêtres d'Attribution</div>
@@ -502,7 +518,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
               {[
                 { id: "analyse", label: "💰 Analyse" },
                 { id: "comparateur", label: "🧮 Marge" },
-                { id: "multilines", label: "🎛️ Optimisation Multi-Lines" }
+                { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
+                { id: "historique", label: "📜 Historique" }
               ].map(t => (
                 <button
                   key={t.id}
@@ -570,7 +587,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       onChange={(e) => setUplift(Number(e.target.value))}
                     />
                     
-                    {/* ENCARD TOTAL MEDIA COST PLUS */}
                     {(() => {
                       const newMargin = currentMarginPctCalc + uplift;
                       const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
@@ -592,6 +608,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     })()}
                   </div>
 
+                  {/* Options 1 & 2 - I'll keep these parts unchanged as they're working well */}
                   <div className="grid grid-cols-2 gap-6">
                     {/* Option 1 */}
                     <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
@@ -660,7 +677,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       })()}
                     </div>
 
-                    {/* Option 2 */}
+                    {/* Option 2 - similar structure, keeping existing logic */}
                     <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                       <h4 className="text-amber-900 font-bold text-base mb-2">
@@ -670,6 +687,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
                       </p>
                       
+                      {/* ... (keeping the Option 2 logic exactly as is) ... */}
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
                         const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
@@ -679,33 +697,29 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let dropPess = 1;
                         let expertExplanation = "";
                         
-                        // --- CERVEAU TRADER EXPERT v4.0 ---
                         const hasViewWindow = attrView > 0;
                         const isStrictClick = attrView === 0;
-                        const isLongView = attrView >= 2; // > 1 jour
+                        const isLongView = attrView >= 2;
                         const isMidView = attrView >= 1 && attrView < 2;
                         
                         switch(project.kpiType) {
                           case "CPA":
                           case "CPL":
-                            if (priceDrop >= 0) { // Baisse du Bid
+                            if (priceDrop >= 0) {
                               if (isLongView) {
-                                // CAS 1 : ARBITRAGE (Cookie Dropping)
                                 dropOpt = 0.85; 
                                 dropPess = 1.05; 
                                 expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique. En baissant le bid, vous délaissez la qualité pour le volume (Spray & Pray). Vous saturez l'audience de cookies à bas coût. Résultat : vous capturez l'attribution sur des conversions organiques. Le CPA facial s'effondre (c'est brillant sur Excel), mais la valeur incrémentale est quasi-nulle.`;
                               } else if (isMidView) {
-                                // CAS 2 : STANDARD (1j View)
                                 dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5)); 
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
                                 expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus. Vous devez gagner le "Last Look" sur les utilisateurs In-Market. En baissant le bid, vous perdez les enchères face aux concurrents qui utilisent des stratégies "Maximize Conversions". Votre Win-Rate sur les prospects chauds va chuter, dégradant le CPA réel.`;
                               } else {
-                                // CAS 3 : STRICT (Click / 0h)
                                 dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5)); 
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
                                 expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus. Vous êtes nu face à la réalité du marché. Baisser le bid est suicidaire : vous disparaissez des emplacements 'Above the Fold' nécessaires pour déclencher le clic d'impulsion. L'algo de bidding va s'arrêter net.`;
                               }
-                            } else { // Hausse du Bid
+                            } else {
                               if (isStrictClick) {
                                 dropOpt = 1 - (priceDrop * 1.8); 
                                 dropPess = 1 - (priceDrop * 0.9);
@@ -718,8 +732,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             }
                             break;
 
-                          case "CPV": // Coût Par Visite
-                            if (priceDrop >= 0) { // Baisse Bid
+                          case "CPV":
+                            if (priceDrop >= 0) {
                                 if (attrClick > 7) {
                                     dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
@@ -729,14 +743,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
                                     expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge. Sur l'Open Web, un bid < 2€ vous envoie dans les 'Ghettos In-App' (Jeux, Utilitaires). Le clic est technique (Fat Finger), la visite est inexistante (Landing Rate < 10%). Votre CPV va exploser mathématiquement.`;
                                 }
-                            } else { // Hausse Bid
+                            } else {
                               dropOpt = 1 - (priceDrop * 1.4);
                               dropPess = 1 - (priceDrop * 0.8);
                               expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible sur des contextes éditoriaux (News, Blogs) et des connexions Wifi/4G+. Le temps de chargement est rapide, l'utilisateur est attentif. Le Landing Rate passe de 20% à 70%, rentabilisant largement la hausse du CPC.";
                             }
                             break;
 
-                          case "CPCV": // Cost Per Completed View
+                          case "CPCV":
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
@@ -761,7 +775,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             }
                             break;
 
-                          default: // CPM/Viewability
+                          default:
                              if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
@@ -774,7 +788,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             break;
                         }
                         
-                        // Calcul final du KPI
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
                         let kpiOpt2 = 0, kpiPess2 = 0;
 
@@ -932,7 +945,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </button>
                   </div>
 
-                  {/* TABLEAU OPTIMISATION */}
                   {proposedOptimizations && (
                     <>
                       <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
@@ -986,7 +998,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </table>
                       </div>
 
-                      {/* 👇 NOUVEL ONGLET D'IMPACT ANALYTICS 👇 */}
                       <div className="mt-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                         <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-3">
                             <div className="bg-indigo-100 p-2 rounded-lg">
@@ -998,7 +1009,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         <div className="grid grid-cols-2 gap-8">
                             <div>
                                 {(() => {
-                                    // Calcul des moyennes pondérées avant / après
                                     const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
                                     const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
                                     
@@ -1008,7 +1018,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     
                                     const marginDiff = newWeightedMargin - oldWeightedMargin;
                                     
-                                    // Simulation KPI
                                     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                                     const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
                                     const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
@@ -1033,7 +1042,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                                 </div>
                                             </div>
 
-                                            {/* NOUVELLE SECTION CPM & KPI */}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
                                                     <div className="text-xs font-bold text-indigo-800 mb-1">CPM Revenu (Moy.)</div>
@@ -1064,6 +1072,21 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     : "Offensive de volume. Nous avons sacrifié de la marge sur les meilleurs performers pour aller chercher plus de conversions. Les lignes stériles (0 conv) ont été coupées pour financer cette croissance."}
                             </div>
                         </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3">
+                        <button 
+                          onClick={() => setProposedOptimizations(null)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                        <button 
+                          onClick={applyOptimizations}
+                          className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                          ✅ Appliquer l'Optimisation
+                        </button>
                       </div>
                     </>
                   )}
@@ -1177,6 +1200,179 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   >
                     + Ajouter une ligne
                   </button>
+                </div>
+              )}
+
+              {/* 🆕 ONGLET HISTORIQUE */}
+              {activeTab === "historique" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-gray-900">Historique des Modifications</h3>
+                    <div className="text-sm text-gray-500">
+                      {project.history?.length || 0} entrée(s)
+                    </div>
+                  </div>
+
+                  {(!project.history || project.history.length === 0) ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+                      <div className="text-gray-400 text-4xl mb-3">📜</div>
+                      <h4 className="font-bold text-gray-700 mb-1">Aucun historique</h4>
+                      <p className="text-sm text-gray-500">
+                        Les modifications futures seront enregistrées ici automatiquement.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Timeline visuelle */}
+                      <div className="relative">
+                        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                        <div className="space-y-6">
+                          {[...project.history].reverse().map((snap, idx) => {
+                            const date = new Date(snap.timestamp);
+                            const isRecent = (Date.now() - date.getTime()) < 24 * 60 * 60 * 1000;
+                            
+                            return (
+                              <div key={idx} className="relative pl-16">
+                                <div className={cn(
+                                  "absolute left-6 w-4 h-4 rounded-full border-4",
+                                  snap.action === "MARGIN_UP" ? "bg-emerald-500 border-emerald-100" :
+                                  snap.action === "MARGIN_DOWN" ? "bg-amber-500 border-amber-100" :
+                                  snap.action === "OPTIMIZATION" ? "bg-blue-500 border-blue-100" :
+                                  "bg-gray-400 border-gray-100"
+                                )}></div>
+                                
+                                <div className={cn(
+                                  "bg-white border rounded-xl p-5 shadow-sm",
+                                  isRecent && "border-blue-300 bg-blue-50/30"
+                                )}>
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "px-3 py-1 rounded-full text-xs font-bold",
+                                        snap.action === "MARGIN_UP" ? "bg-emerald-100 text-emerald-700" :
+                                        snap.action === "MARGIN_DOWN" ? "bg-amber-100 text-amber-700" :
+                                        snap.action === "OPTIMIZATION" ? "bg-blue-100 text-blue-700" :
+                                        "bg-gray-100 text-gray-700"
+                                      )}>
+                                        {snap.action === "MARGIN_UP" ? "📈 MONTÉE MARGE" :
+                                         snap.action === "MARGIN_DOWN" ? "📉 BAISSE MARGE" :
+                                         snap.action === "OPTIMIZATION" ? "🎛️ OPTIMISATION" :
+                                         "💾 SAUVEGARDE"}
+                                      </div>
+                                      {isRecent && (
+                                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">
+                                          RÉCENT
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-500 font-medium">
+                                      {date.toLocaleDateString('fr-FR', { 
+                                        day: '2-digit', 
+                                        month: 'short', 
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-4 gap-4 mb-3">
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Marge</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.marginPct.toFixed(2)} %
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Budget Dépensé</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.budgetSpent.toLocaleString()} {currSym}
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">CPM Cost</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.cpmCostActuel.toFixed(2)} {currSym}
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Gain Réalisé</div>
+                                      <div className="text-lg font-black text-emerald-600">
+                                        {snap.gainRealized.toFixed(0)} {currSym}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {snap.note && (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
+                                      <strong>Note :</strong> {snap.note}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Graphique d'évolution */}
+                      <div className="bg-white border border-gray-100 rounded-xl p-6 mt-8">
+                        <h4 className="font-bold text-gray-900 mb-4">Évolution de la Marge</h4>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart 
+                              data={project.history.map(snap => ({
+                                date: new Date(snap.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+                                marge: snap.marginPct,
+                                gain: snap.gainRealized
+                              }))}
+                              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                              <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                              <YAxis 
+                                yAxisId="left"
+                                tick={{ fontSize: 12, fill: '#64748b' }} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(val) => `${val.toFixed(0)}%`}
+                              />
+                              <YAxis 
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fontSize: 12, fill: '#64748b' }} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(val) => `${val.toFixed(0)}${currSym}`}
+                              />
+                              <Tooltip 
+                                contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              />
+                              <Legend />
+                              <Line 
+                                yAxisId="left"
+                                type="monotone" 
+                                dataKey="marge" 
+                                stroke="#3b82f6" 
+                                strokeWidth={3} 
+                                name="Marge %"
+                                dot={{ r: 4 }}
+                              />
+                              <Line 
+                                yAxisId="right"
+                                type="monotone" 
+                                dataKey="gain" 
+                                stroke="#10b981" 
+                                strokeWidth={3} 
+                                name={`Gain (${currSym})`}
+                                dot={{ r: 4 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
