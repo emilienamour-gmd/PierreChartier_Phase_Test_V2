@@ -1,9 +1,4 @@
-# Je vais créer les fichiers modifiés pour toi
-
-# 1. Modification de types.ts (ajouter uplift à ProjectData)
-types_ts = """// src/types.ts
-
-export interface LineItem {
+code = '''export interface LineItem {
   id: string;
   name: string;
   spend: number;
@@ -25,6 +20,7 @@ export interface ProjectSnapshot {
 }
 
 export interface ProjectData {
+  id: string;
   name: string;
   currency: string;
   budgetTotal: number;
@@ -42,12 +38,12 @@ export interface ProjectData {
   history: ProjectSnapshot[];
   createdAt?: string;
   updatedAt?: string;
-  
-  // 🆕 NOUVEAU : Sauvegarde de la position du slider de marge
+  lastModified: number;
   uplift?: number;
 }
 
 export const DEFAULT_PROJECT: ProjectData = {
+  id: "",
   name: "Nouveau Projet",
   currency: "EUR",
   budgetTotal: 0,
@@ -65,14 +61,15 @@ export const DEFAULT_PROJECT: ProjectData = {
   history: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
-  uplift: 3.0, // 🆕 Valeur par défaut du slider
+  lastModified: 0,
+  uplift: 3.0,
 };
-"""
+'''
 
-with open("types.ts", "w", encoding="utf-8") as f:
-    f.write(types_ts)
+with open('/mnt/data/types.ts', 'w', encoding='utf-8') as f:
+    f.write(code)
 
-print("✅ types.ts modifié avec succès!")
-print("\n📝 Changements apportés:")
-print("  - Ajout de 'uplift?: number;' dans ProjectData")
-print("  - Ajout de 'uplift: 3.0' dans DEFAULT_PROJECT")
+print("✅ Fichier types.ts créé (sans commentaires)")
+print(f"📏 Nombre de lignes : {len(code.splitlines())}")
+print("\n📝 Contenu :\n")
+print(code)
