@@ -1,6 +1,4 @@
-# Création du fichier CockpitYield.tsx complet avec les modifications pour sauvegarder uplift
-
-code = '''import { useState, ChangeEvent, useEffect } from "react";
+import { useState, ChangeEvent, useEffect } from "react";
 import { ProjectData, LineItem, ProjectSnapshot } from "../types";
 import { cn } from "../utils/cn";
 import { 
