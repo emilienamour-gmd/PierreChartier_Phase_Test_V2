@@ -758,14 +758,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </>
                   )}
                 </div>
-              </div>
-            );
-          })()}
-
-        </div>  
-      </div>    
-    )           
-  }             
+        </div>
+      );
+    })()}
                          
                   {/* Bouton Appliquer */}
                   <div className="flex justify-end">
