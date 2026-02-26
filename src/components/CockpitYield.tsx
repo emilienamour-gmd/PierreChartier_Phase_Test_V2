@@ -716,8 +716,60 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       value={uplift}
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
-                    
-                  <div>TEST</div>
+
+                         {/* DÉBUT DU BLOC CALCULÉ (À coller après la ligne 718) */}
+          {(() => {
+            const newMargin = currentMarginPctCalc + uplift;
+            const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
+
+            const budgetRestant = project.budgetTotal - project.budgetSpent;
+            let costDSP = 0;
+
+            if (project.inputMode === "CPM Cost") {
+              if (uplift >= 0) {
+                costDSP = budgetRestant * (1 - newMargin / 100);
+              } else {
+                const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
+                const costRestant = budgetRestant * (1 - newMargin / 100);
+                costDSP = costDejaDepense + costRestant;
+              }
+            }
+
+            return (
+              <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                <div>
+                  <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Nouvelle Marge Globale</div>
+                  <div className="text-xl font-black text-gray-900">{newMargin.toFixed(2)} %</div>
+                </div>
+                <div className="text-gray-300 px-4">
+                  <ArrowRight className="w-6 h-6" />
+                </div>
+                <div className="text-right">
+                  {project.inputMode === "CPM Cost" ? (
+                    <>
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Cost dans le DSP</div>
+                      <div className="text-xl font-black text-blue-600">{costDSP.toFixed(2)} {currSym}</div>
+                      <div className="text-[10px] text-gray-400 mt-1">
+                        {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Total Media Cost Plus</div>
+                      <div className="text-xl font-black text-blue-600">{tmcp.toFixed(2)} %</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          {/* FIN DU BLOC CALCULÉ */}
+
+        </div>  {/* Ferme la div de la ligne 706 (bg-gray-50...) */}
+      </div>    {/* Ferme la div de la ligne 705 (space-y-8) */}
+    )           {/* Ferme la parenthèse de la ligne 704 */}
+  }             {/* Ferme l'accolade de la ligne 704 */}
+                         
                   {/* Bouton Appliquer */}
                   <div className="flex justify-end">
                     <button 
