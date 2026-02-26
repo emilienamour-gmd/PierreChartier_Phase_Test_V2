@@ -1,4 +1,4 @@
-code = '''export interface LineItem {
+export interface LineItem {
   id: string;
   name: string;
   spend: number;
@@ -64,12 +64,3 @@ export const DEFAULT_PROJECT: ProjectData = {
   lastModified: 0,
   uplift: 3.0,
 };
-'''
-
-with open('/mnt/data/types.ts', 'w', encoding='utf-8') as f:
-    f.write(code)
-
-print("✅ Fichier types.ts créé (sans commentaires)")
-print(f"📏 Nombre de lignes : {len(code.splitlines())}")
-print("\n📝 Contenu :\n")
-print(code)
