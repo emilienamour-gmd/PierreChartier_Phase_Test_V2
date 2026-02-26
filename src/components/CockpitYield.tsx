@@ -1,9 +1,8 @@
 import { useState, ChangeEvent, useEffect } from "react";
-import { ProjectData, LineItem, ProjectSnapshot } from "../types";
+import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod } from "../types";
 import { cn } from "../utils/cn";
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+       } from "recharts";
 import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -20,33 +19,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
-  const calculateWeightedMargin = (): number => {
-  if (!project.marginPeriods || project.marginPeriods.length === 0) {
-    return currentMarginPctCalc;
-  }
-  
-  let totalGain = 0;
-  let totalSpent = 0;
-  
-  for (let i = 0; i < project.marginPeriods.length; i++) {
-    const period = project.marginPeriods[i];
-    const nextPeriod = project.marginPeriods[i + 1];
-    
-    const budgetInPeriod = nextPeriod 
-      ? nextPeriod.budgetSpentAtStart - period.budgetSpentAtStart
-      : project.budgetSpent - period.budgetSpentAtStart;
-    
-    const gainInPeriod = budgetInPeriod * (period.marginPct / 100);
-    
-    totalGain += gainInPeriod;
-    totalSpent += budgetInPeriod;
-  }
-  
-  return totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
-};
-
-const displayMargin = calculateWeightedMargin();
-
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
 
@@ -55,76 +27,23 @@ const displayMargin = calculateWeightedMargin();
   }, [project.id]);
 
   useEffect(() => {
-  if (!project.updatedAt || project.budgetTotal === 0 || project.durationDays === 0) return;
-  
-  const lastUpdate = new Date(project.updatedAt);
-  const now = new Date();
-  const daysElapsed = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  if (daysElapsed > 0 && project.budgetSpent < project.budgetTotal) {
-    const dailyBudget = project.budgetTotal / project.durationDays;
-    const actualDailySpend = dailyBudget * 1.10;
-    const additionalSpend = actualDailySpend * daysElapsed;
-    const newBudgetSpent = Math.min(project.budgetTotal, project.budgetSpent + additionalSpend);
+    if (!project.updatedAt || project.budgetTotal === 0 || project.durationDays === 0) return;
     
-    if (newBudgetSpent > project.budgetSpent) {
-      updateField("budgetSpent", newBudgetSpent);
-      console.log(`📅 ${daysElapsed} jours écoulés → Budget dépensé mis à jour : +${additionalSpend.toFixed(2)}€`);
+    const lastUpdate = new Date(project.updatedAt);
+    const now = new Date();
+    const daysElapsed = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysElapsed > 0 && project.budgetSpent < project.budgetTotal) {
+      const dailyBudget = project.budgetTotal / project.durationDays;
+      const actualDailySpend = dailyBudget * 1.10;
+      const additionalSpend = actualDailySpend * daysElapsed;
+      const newBudgetSpent = Math.min(project.budgetTotal, project.budgetSpent + additionalSpend);
+      
+      if (newBudgetSpent > project.budgetSpent) {
+        updateField("budgetSpent", newBudgetSpent);
+      }
     }
-  }
-}, [project.id]);
-
-  const updateUplift = (newUplift: number) => {
-    setUplift(newUplift);
-    updateField("uplift", newUplift);
-  };
-
-  const applyMarginChange = () => {
-  if (uplift === 0) {
-    alert("Aucun changement de marge à appliquer.");
-    return;
-  }
-  
-  const newMarginPct = currentMarginPctCalc + uplift;
-  
-  const action: "MARGIN_UP" | "MARGIN_DOWN" = uplift > 0 ? "MARGIN_UP" : "MARGIN_DOWN";
-  const note = uplift > 0 
-    ? `Augmentation de marge : +${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)` 
-    : `Baisse de marge : ${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)`;
-  
-  const snapshot: ProjectSnapshot = {
-    timestamp: new Date().toISOString(),
-    budgetSpent: project.budgetSpent,
-    marginPct: newMarginPct,
-    cpmCostActuel: project.inputMode === "CPM Cost" 
-      ? project.cpmCostActuel 
-      : project.cpmRevenueActual * (1 - newMarginPct / 100),
-    cpmRevenueActual: project.cpmRevenueActual,
-    actualKpi: project.actualKpi,
-    gainRealized: project.budgetSpent * (newMarginPct / 100),
-    action: action,
-    note: note
-  };
-  
-  const newPeriod: MarginPeriod = {
-    startDate: new Date().toISOString(),
-    marginPct: newMarginPct,
-    budgetSpentAtStart: project.budgetSpent
-  };
-  
-  const newHistory = [...(project.history || []), snapshot];
-  const newMarginPeriods = [...(project.marginPeriods || []), newPeriod];
-  
-  onChange({
-    ...project,
-    history: newHistory,
-    marginPeriods: newMarginPeriods,
-    margeInput: newMarginPct,
-    updatedAt: new Date().toISOString()
-  });
-  
-  alert(`✅ Changement de marge enregistré !`);
-};
+  }, [project.id]);
 
   const toggleLock = (id: string) => {
     const newLocked = new Set(lockedLines);
@@ -137,6 +56,11 @@ const displayMargin = calculateWeightedMargin();
 
   const updateField = <K extends keyof ProjectData>(field: K, value: ProjectData[K]) => {
     onChange({ ...project, [field]: value, updatedAt: new Date().toISOString() });
+  };
+
+  const updateUplift = (newUplift: number) => {
+    setUplift(newUplift);
+    updateField("uplift", newUplift);
   };
 
   const createSnapshot = (action: ProjectSnapshot["action"], note?: string): ProjectSnapshot => {
@@ -163,6 +87,53 @@ const displayMargin = calculateWeightedMargin();
     };
   };
 
+  const applyMarginChange = () => {
+    if (uplift === 0) {
+      alert("Aucun changement de marge à appliquer.");
+      return;
+    }
+    
+    const newMarginPct = currentMarginPctCalc + uplift;
+    
+    const action: "MARGIN_UP" | "MARGIN_DOWN" = uplift > 0 ? "MARGIN_UP" : "MARGIN_DOWN";
+    const note = uplift > 0 
+      ? `Augmentation de marge : +${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)` 
+      : `Baisse de marge : ${uplift.toFixed(1)} points (nouvelle marge : ${newMarginPct.toFixed(2)}%)`;
+    
+    const snapshot: ProjectSnapshot = {
+      timestamp: new Date().toISOString(),
+      budgetSpent: project.budgetSpent,
+      marginPct: newMarginPct,
+      cpmCostActuel: project.inputMode === "CPM Cost" 
+        ? project.cpmCostActuel 
+        : project.cpmRevenueActual * (1 - newMarginPct / 100),
+      cpmRevenueActual: project.cpmRevenueActual,
+      actualKpi: project.actualKpi,
+      gainRealized: project.budgetSpent * (newMarginPct / 100),
+      action: action,
+      note: note
+    };
+    
+    const newPeriod: MarginPeriod = {
+      startDate: new Date().toISOString(),
+      marginPct: newMarginPct,
+      budgetSpentAtStart: project.budgetSpent
+    };
+    
+    const newHistory = [...(project.history || []), snapshot];
+    const newMarginPeriods = [...(project.marginPeriods || []), newPeriod];
+    
+    onChange({
+      ...project,
+      history: newHistory,
+      marginPeriods: newMarginPeriods,
+      margeInput: newMarginPct,
+      updatedAt: new Date().toISOString()
+    });
+    
+    alert(`✅ Changement de marge enregistré !`);
+  };
+
   const budgetRemaining = project.budgetTotal - project.budgetSpent;
   const pctProgress = project.budgetTotal > 0 ? project.budgetSpent / project.budgetTotal : 0;
   const currentDay = Math.floor(project.durationDays * pctProgress);
@@ -179,6 +150,33 @@ const displayMargin = calculateWeightedMargin();
     currentMarginPctCalc = project.margeInput;
     cpmCostActuelCalc = project.cpmRevenueActual * (1 - project.margeInput / 100);
   }
+
+  const calculateWeightedMargin = (): number => {
+    if (!project.marginPeriods || project.marginPeriods.length === 0) {
+      return currentMarginPctCalc;
+    }
+    
+    let totalGain = 0;
+    let totalSpent = 0;
+    
+    for (let i = 0; i < project.marginPeriods.length; i++) {
+      const period = project.marginPeriods[i];
+      const nextPeriod = project.marginPeriods[i + 1];
+      
+      const budgetInPeriod = nextPeriod 
+        ? nextPeriod.budgetSpentAtStart - period.budgetSpentAtStart
+        : project.budgetSpent - period.budgetSpentAtStart;
+      
+      const gainInPeriod = budgetInPeriod * (period.marginPct / 100);
+      
+      totalGain += gainInPeriod;
+      totalSpent += budgetInPeriod;
+    }
+    
+    return totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
+  };
+
+  const displayMargin = calculateWeightedMargin();
 
   const totalSpendTable = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   let wMargin = currentMarginPctCalc;
@@ -350,8 +348,7 @@ const displayMargin = calculateWeightedMargin();
       alert("Optimisations appliquées avec succès.");
     }
   };
-
-  return (
+    return (
     <div className="flex h-full overflow-hidden bg-[#f8f9fa] relative">
       {/* Parameters Sidebar */}
       <div className={cn(
@@ -593,12 +590,12 @@ const displayMargin = calculateWeightedMargin();
               accent="indigo"
             />
             <MetricCard 
-  title="Marge Actuelle" 
-  value={`${displayMargin.toFixed(2)} %`}  // 🔄 REMPLACER dispMargin par displayMargin
-  subValue={`${margeEuroDisp.toFixed(2)} ${currSym}`}
-  icon={Percent}
-  accent="emerald"
-/>
+              title="Marge Actuelle" 
+              value={`${displayMargin.toFixed(2)} %`}
+              subValue={`${margeEuroDisp.toFixed(2)} ${currSym}`}
+              icon={Percent}
+              accent="emerald"
+            />
             <MetricCard 
               title={`KPI ${project.kpiType}`} 
               value={isFin ? `${fmtKpi(dispKpi)} ${currSym}` : `${(dispKpi * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} ${project.kpiType === "CTR" ? "%" : ""}`} 
@@ -708,7 +705,7 @@ const displayMargin = calculateWeightedMargin();
                     })()}
                   </div>
 
-                  {/* Bouton Appliquer Changement de Marge */}
+                  {/* Bouton Appliquer */}
                   <div className="flex justify-end">
                     <button 
                       onClick={applyMarginChange}
@@ -740,8 +737,7 @@ const displayMargin = calculateWeightedMargin();
                       )}
                     </button>
                   </div>
-
-                  {/* Options 1 & 2 */}
+                   {/* Options 1 & 2 */}
                   <div className="grid grid-cols-2 gap-6">
                     {/* Option 1 */}
                     <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
@@ -755,7 +751,6 @@ const displayMargin = calculateWeightedMargin();
                       
                       {(() => {
                         const newMarg = currentMarginPctCalc + uplift;
-                        const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
                         const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
                         const exceeds = newRevOpt1 > project.cpmSoldCap;
                         const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
@@ -825,11 +820,10 @@ const displayMargin = calculateWeightedMargin();
                         const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
                         const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
                         
-                        let dropOpt = 1; 
+                        let dropOpt = 1;
                         let dropPess = 1;
                         let expertExplanation = "";
                         
-                        const hasViewWindow = attrView > 0;
                         const isStrictClick = attrView === 0;
                         const isLongView = attrView >= 2;
                         const isMidView = attrView >= 1 && attrView < 2;
@@ -839,46 +833,46 @@ const displayMargin = calculateWeightedMargin();
                           case "CPL":
                             if (priceDrop >= 0) {
                               if (isLongView) {
-                                dropOpt = 0.85; 
-                                dropPess = 1.05; 
-                                expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique. En baissant le bid, vous délaissez la qualité pour le volume (Spray & Pray). Vous saturez l'audience de cookies à bas coût. Résultat : vous capturez l'attribution sur des conversions organiques. Le CPA facial s'effondre (c'est brillant sur Excel), mais la valeur incrémentale est quasi-nulle.`;
+                                dropOpt = 0.85;
+                                dropPess = 1.05;
+                                expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique.`;
                               } else if (isMidView) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5)); 
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
-                                expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus. Vous devez gagner le "Last Look" sur les utilisateurs In-Market. En baissant le bid, vous perdez les enchères face aux concurrents qui utilisent des stratégies "Maximize Conversions". Votre Win-Rate sur les prospects chauds va chuter, dégradant le CPA réel.`;
+                                expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus.`;
                               } else {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5)); 
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5));
                                 dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
-                                expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus. Vous êtes nu face à la réalité du marché. Baisser le bid est suicidaire : vous disparaissez des emplacements 'Above the Fold' nécessaires pour déclencher le clic d'impulsion. L'algo de bidding va s'arrêter net.`;
+                                expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus.`;
                               }
                             } else {
                               if (isStrictClick) {
-                                dropOpt = 1 - (priceDrop * 1.8); 
+                                dropOpt = 1 - (priceDrop * 1.8);
                                 dropPess = 1 - (priceDrop * 0.9);
-                                expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable. Vous achetez de la 'Part de Voix' sur les meilleurs emplacements pour maximiser le CTR et le CVR immédiat. C'est du 'Pay-to-Play' pour la performance.";
+                                expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable.";
                               } else {
                                 dropOpt = 1 - (priceDrop * 1.3);
                                 dropPess = 1 - (priceDrop * 0.7);
-                                expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding. Il pourra enfin s'aligner sur les enchères à très haute probabilité de conversion (Top 5% Users) qui sont inaccessibles avec un bid moyen.";
+                                expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding.";
                               }
                             }
                             break;
 
                           case "CPV":
                             if (priceDrop >= 0) {
-                                if (attrClick > 7) {
-                                    dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                                    dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                    expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité (Rebond immédiat). Avec une fenêtre d'attribution large de ${attrClick} jours, vous espérez un retour ultérieur via SEO/Direct, mais c'est un pari risqué sur la mémorisation d'une visite avortée.`;
-                                } else {
-                                    dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8)); 
-                                    dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
-                                    expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge. Sur l'Open Web, un bid < 2€ vous envoie dans les 'Ghettos In-App' (Jeux, Utilitaires). Le clic est technique (Fat Finger), la visite est inexistante (Landing Rate < 10%). Votre CPV va exploser mathématiquement.`;
-                                }
+                              if (attrClick > 7) {
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                                expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité.`;
+                              } else {
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8));
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
+                                expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge.`;
+                              }
                             } else {
                               dropOpt = 1 - (priceDrop * 1.4);
                               dropPess = 1 - (priceDrop * 0.8);
-                              expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible sur des contextes éditoriaux (News, Blogs) et des connexions Wifi/4G+. Le temps de chargement est rapide, l'utilisateur est attentif. Le Landing Rate passe de 20% à 70%, rentabilisant largement la hausse du CPC.";
+                              expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible.";
                             }
                             break;
 
@@ -886,11 +880,11 @@ const displayMargin = calculateWeightedMargin();
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                              expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés. Si vous baissez le bid, vous serez relégué sur de l'In-Banner Video ou des formats interstitiels forcés où la complétion est artificielle.";
+                              expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés.";
                             } else {
                               dropOpt = 1 - (priceDrop * 1.2);
                               dropPess = 1 - (priceDrop * 0.5);
-                              expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices des gros éditeurs pour accéder à leur inventaire In-Stream natif.";
+                              expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices.";
                             }
                             break;
 
@@ -899,23 +893,23 @@ const displayMargin = calculateWeightedMargin();
                             if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
-                              expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position. En baissant le bid, vous perdez les enchères 'First Look' et les emplacements Haut de Page.";
+                              expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position.";
                             } else {
                               dropOpt = 1 - (priceDrop * 1.4);
                               dropPess = 1 - (priceDrop * 0.7);
-                              expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions pour les emplacements 970x250 ou 300x600 en haut de page.";
+                              expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions.";
                             }
                             break;
 
                           default:
-                             if (priceDrop >= 0) {
+                            if (priceDrop >= 0) {
                               dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
                               dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
-                              expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose massivement aux sites MFA (Made For Advertising). Vous aurez du volume, mais sur des domaines de qualité médiocre.";
+                              expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose aux sites MFA.";
                             } else {
                               dropOpt = 1 - (priceDrop * 0.6);
                               dropPess = 1 - (priceDrop * 0.3);
-                              expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists d'éditeurs Premium sans être bloqué par leurs Floor Prices.";
+                              expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists Premium.";
                             }
                             break;
                         }
@@ -925,7 +919,7 @@ const displayMargin = calculateWeightedMargin();
 
                         if (isFin) {
                           if (project.kpiType === "CPM") {
-                            kpiOpt2 = project.cpmRevenueActual; 
+                            kpiOpt2 = project.cpmRevenueActual;
                             kpiPess2 = project.cpmRevenueActual;
                           } else if (perfRate > 0) {
                             kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
@@ -963,7 +957,7 @@ const displayMargin = calculateWeightedMargin();
 
                             <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
                               <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
-                                <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert Open Web</span>
+                                <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert</span>
                                 <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
                               </summary>
                               <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
@@ -1135,7 +1129,7 @@ const displayMargin = calculateWeightedMargin();
                             <div className="bg-indigo-100 p-2 rounded-lg">
                                 <Activity className="w-5 h-5 text-indigo-600" />
                             </div>
-                            <h4 className="text-lg font-bold text-gray-900">Impact Projeté de la Nouvelle Marge</h4>
+                            <h4 className="text-lg font-bold text-gray-900">Impact Projeté</h4>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-8">
@@ -1200,8 +1194,8 @@ const displayMargin = calculateWeightedMargin();
                             <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
                                 <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
                                 {marginGoal === "increase" 
-                                    ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité (ratio > 1). Les lignes à 0 conversion ont été lourdement sanctionnées (hausse de marge) pour stopper l'hémorragie budgétaire." 
-                                    : "Offensive de volume. Nous avons sacrifié de la marge sur les meilleurs performers pour aller chercher plus de conversions. Les lignes stériles (0 conv) ont été coupées pour financer cette croissance."}
+                                    ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
+                                    : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
                             </div>
                         </div>
                       </div>
@@ -1217,7 +1211,7 @@ const displayMargin = calculateWeightedMargin();
                           onClick={applyOptimizations}
                           className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
                         >
-                          ✅ Appliquer l'Optimisation
+                          ✅ Appliquer
                         </button>
                       </div>
                     </>
@@ -1229,9 +1223,9 @@ const displayMargin = calculateWeightedMargin();
                         <tr>
                           <th className="px-6 py-4 font-bold">Line Item</th>
                           <th className="px-6 py-4 font-bold">Dépense Jour</th>
-                          <th className="px-6 py-4 font-bold">CPM Revenu Actuel</th>
-                          <th className="px-6 py-4 font-bold">Marge Actuelle %</th>
-                          <th className="px-6 py-4 font-bold">KPI Actuel ({project.kpiType})</th>
+                          <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                          <th className="px-6 py-4 font-bold">Marge %</th>
+                          <th className="px-6 py-4 font-bold">KPI ({project.kpiType})</th>
                           <th className="px-6 py-4 font-bold"></th>
                         </tr>
                       </thead>
@@ -1242,7 +1236,6 @@ const displayMargin = calculateWeightedMargin();
                               <button 
                                 onClick={() => toggleLock(li.id)}
                                 className={cn("p-1.5 rounded-md transition-colors", lockedLines.has(li.id) ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
-                                title={lockedLines.has(li.id) ? "Budget verrouillé" : "Budget modifiable"}
                               >
                                 {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                               </button>
