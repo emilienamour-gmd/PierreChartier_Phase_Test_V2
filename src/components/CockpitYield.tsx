@@ -761,12 +761,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
               </div>
             );
           })()}
-          {/* FIN DU BLOC CALCULÉ */}
 
-        </div>  {/* Ferme la div de la ligne 706 (bg-gray-50...) */}
-      </div>    {/* Ferme la div de la ligne 705 (space-y-8) */}
-    )           {/* Ferme la parenthèse de la ligne 704 */}
-  }             {/* Ferme l'accolade de la ligne 704 */}
+        </div>  
+      </div>    
+    )           
+  }             
                          
                   {/* Bouton Appliquer */}
                   <div className="flex justify-end">
