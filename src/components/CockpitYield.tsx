@@ -964,21 +964,31 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
 
-                    {/* Bloc Calculation IIFE */}
+                    {/* Bloc Calculation IIFE MODIFIÉ */}
                     {(() => {
                       const newMargin = currentMarginPctCalc + uplift;
                       const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
 
                       const budgetRestant = project.budgetTotal - project.budgetSpent;
+                      
+                      // Calcul du cost déjà dépensé avec l'ancienne marge
+                      const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
+                      
                       let costDSP = 0;
+                      let totalCostDSP = 0;
 
                       if (project.inputMode === "CPM Cost") {
                         if (uplift >= 0) {
+                          // Cas Hausse de marge : 
+                          // 1. On calcule le nouveau budget cost pour ce qu'il reste à dépenser
                           costDSP = budgetRestant * (1 - newMargin / 100);
+                          // 2. On calcule le total (ce qui a été dépensé + ce qu'il reste à dépenser)
+                          totalCostDSP = costDejaDepense + costDSP;
                         } else {
-                          const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
+                          // Cas Baisse de marge :
                           const costRestant = budgetRestant * (1 - newMargin / 100);
                           costDSP = costDejaDepense + costRestant;
+                          totalCostDSP = costDSP;
                         }
                       }
 
@@ -999,6 +1009,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 <div className="text-[10px] text-gray-400 mt-1">
                                   {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
                                 </div>
+                                
+                                {/* --- NOUVEAU BLOC : Affichage du Total à saisir en cas de hausse --- */}
+                                {uplift > 0 && (
+                                   <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                                     <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
+                                     <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
+                                       {totalCostDSP.toFixed(2)} {currSym}
+                                     </div>
+                                   </div>
+                                )}
                               </>
                             ) : (
                               <>
