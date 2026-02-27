@@ -1,8 +1,8 @@
 import { useState, ChangeEvent, useEffect } from "react";
-import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote } from "../types";
+import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote, DailyEntry } from "../types";
 import { cn } from "../utils/cn";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History, Calendar, Check, X } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -11,7 +11,7 @@ interface CockpitYieldProps {
 }
 
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
-  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique" | "notes">("analyse");
+  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "suivi" | "historique" | "notes">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
   const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -21,6 +21,17 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
+
+  // ✅ NOUVEAUX ÉTATS : Suivi Quotidien
+  const [dailyForm, setDailyForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    budgetSpentYesterday: 0,
+    cpmRevenueYesterday: project.cpmRevenueActual || 0,
+    marginPctYesterday: 0,
+    kpiYesterday: project.actualKpi || 0
+  });
+  const [showDailyPreview, setShowDailyPreview] = useState(false);
+  const [chartTimeRange, setChartTimeRange] = useState<"daily" | "weekly">("daily");
 
   useEffect(() => {
     setUplift(project.uplift ?? 3.0);
@@ -85,6 +96,76 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       action,
       note
     };
+  };
+
+  // ✅ NOUVELLE FONCTION : Appliquer les données quotidiennes
+  const applyDailyEntry = () => {
+    if (!dailyForm.budgetSpentYesterday || dailyForm.budgetSpentYesterday <= 0) {
+      alert("⚠️ Veuillez saisir un budget dépensé valide.");
+      return;
+    }
+
+    // Calcul du budget cumulé
+    const previousCumulative = project.budgetSpent;
+    const newCumulative = previousCumulative + dailyForm.budgetSpentYesterday;
+
+    if (newCumulative > project.budgetTotal) {
+      if (!confirm(`⚠️ Le budget cumulé (${newCumulative.toFixed(2)} ${currSym}) dépasse le budget total (${project.budgetTotal} ${currSym}). Continuer quand même ?`)) {
+        return;
+      }
+    }
+
+    // Création de l'entrée quotidienne
+    const newDailyEntry: DailyEntry = {
+      id: Date.now().toString(),
+      date: dailyForm.date,
+      budgetSpentYesterday: dailyForm.budgetSpentYesterday,
+      cpmRevenueYesterday: dailyForm.cpmRevenueYesterday,
+      marginPctYesterday: dailyForm.marginPctYesterday,
+      kpiYesterday: dailyForm.kpiYesterday,
+      budgetSpentCumulative: newCumulative,
+      appliedAt: new Date().toISOString()
+    };
+
+    // Création du snapshot pour l'historique
+    const snapshot: ProjectSnapshot = {
+      timestamp: new Date().toISOString(),
+      budgetSpent: newCumulative,
+      marginPct: dailyForm.marginPctYesterday,
+      cpmCostActuel: dailyForm.cpmRevenueYesterday * (1 - dailyForm.marginPctYesterday / 100),
+      cpmRevenueActual: dailyForm.cpmRevenueYesterday,
+      actualKpi: dailyForm.kpiYesterday,
+      gainRealized: newCumulative * (dailyForm.marginPctYesterday / 100),
+      action: "DAILY_UPDATE",
+      note: `📊 Mise à jour quotidienne du ${new Date(dailyForm.date).toLocaleDateString('fr-FR')} - Budget: ${dailyForm.budgetSpentYesterday.toFixed(2)} ${currSym}, Marge: ${dailyForm.marginPctYesterday.toFixed(2)}%, CPM Rev: ${dailyForm.cpmRevenueYesterday.toFixed(2)} ${currSym}`
+    };
+
+    // Mise à jour du projet
+    const updatedDailyEntries = [...(project.dailyEntries || []), newDailyEntry];
+    const updatedHistory = [...(project.history || []), snapshot];
+
+    onChange({
+      ...project,
+      budgetSpent: newCumulative,
+      cpmRevenueActual: dailyForm.cpmRevenueYesterday,
+      actualKpi: dailyForm.kpiYesterday,
+      margeInput: dailyForm.marginPctYesterday,
+      dailyEntries: updatedDailyEntries,
+      history: updatedHistory,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Reset du formulaire
+    setDailyForm({
+      date: new Date(new Date(dailyForm.date).getTime() + 86400000).toISOString().split('T')[0], // Jour suivant
+      budgetSpentYesterday: 0,
+      cpmRevenueYesterday: dailyForm.cpmRevenueYesterday,
+      marginPctYesterday: dailyForm.marginPctYesterday,
+      kpiYesterday: dailyForm.kpiYesterday
+    });
+    setShowDailyPreview(false);
+
+    alert("✅ Données quotidiennes appliquées avec succès !");
   };
 
   const applyMarginChange = () => {
@@ -248,7 +329,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   const availableSpend = Math.max(0, totalSpend - lockedSpend);
   
-  // ==== ÉTAPE 1 : CALCUL DES RATIOS DE PERFORMANCE ====
   const scoredItems = project.lineItems.map(li => {
     const actual = li.kpiActual || 0;
     const target = project.targetKpi || 0.0001;
@@ -268,18 +348,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     return { ...li, perfRatio };
   });
   
-  // ==== ÉTAPE 2 : OPTIMISATION SELON LE MODE ====
   let optimizedItems: LineItem[] = [];
   
   if (respectCpmCap) {
-    // 🎯 MODE : RESPECTER LE CPM VENDU CAP (NOUVELLE LOGIQUE INTELLIGENTE)
-    
-    // Calcul du CPM Revenue moyen actuel
     const currentWeightedCpmRev = totalSpend > 0 
       ? scoredItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / totalSpend
       : 0;
     
-    // Objectif : atteindre le CPM Sold Cap en moyenne pondérée
     const targetCpmRev = project.cpmSoldCap;
     const cpmRevGap = targetCpmRev - currentWeightedCpmRev;
     
@@ -287,13 +362,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     console.log(`🎯 CPM Revenue cible (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
     console.log(`📈 Écart à combler : ${cpmRevGap.toFixed(2)} ${currSym}`);
     
-    // ==== STRATÉGIE D'OPTIMISATION INTELLIGENTE ====
     optimizedItems = scoredItems.map(li => {
       let newMargin = li.marginPct;
       let newSpend = li.spend || 0;
       let newCpmRevenue = li.cpmRevenue;
       
-      // --- 1. AJUSTEMENT DE LA MARGE ---
       if (isFin && li.perfRatio === 0) {
         newMargin = li.marginPct;
       } else if (li.perfRatio < 1.0) {
@@ -314,29 +387,19 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       newMargin = Math.max(5, Math.min(95, newMargin));
       
-      // --- 2. AJUSTEMENT DU CPM REVENUE (LOGIQUE INTELLIGENTE) ---
-      // On attribue des CPM Revenue différents selon la performance
-      // pour atteindre le CPM Sold Cap en moyenne pondérée
-      
-      const cpmRevRatio = li.cpmRevenue / targetCpmRev; // Écart de la ligne par rapport au Cap
+      const cpmRevRatio = li.cpmRevenue / targetCpmRev;
       
       if (marginGoal === "increase") {
-        // Augmenter la marge : on veut se rapprocher du Cap
         if (li.perfRatio >= 1.2) {
-          // Ligne très performante : elle peut aller jusqu'au Cap
           newCpmRevenue = Math.min(targetCpmRev * 1.0, li.cpmRevenue * 1.05);
         } else if (li.perfRatio >= 1.0) {
-          // Ligne correcte : elle monte modérément vers le Cap
           newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 1.03);
         } else if (li.perfRatio >= 0.8) {
-          // Ligne en difficulté : elle reste en dessous du Cap
           newCpmRevenue = Math.min(targetCpmRev * 0.85, li.cpmRevenue * 1.01);
         } else {
-          // Ligne sous-performante : elle baisse pour compenser
           newCpmRevenue = li.cpmRevenue * 0.97;
         }
       } else {
-        // Baisser la marge : on baisse légèrement pour rester compétitif
         if (li.perfRatio >= 1.0) {
           newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 0.98);
         } else {
@@ -344,36 +407,25 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         }
       }
       
-      // Contrainte absolue : jamais au-dessus du Cap
       newCpmRevenue = Math.min(targetCpmRev, newCpmRevenue);
       
       return { ...li, newMargin, newCpmRevenue, perfRatio: li.perfRatio };
     });
     
-    // --- 3. RÉALLOCATION DES BUDGETS POUR OPTIMISER LA MOYENNE PONDÉRÉE ---
-    // On calcule un score composite qui prend en compte :
-    // - La performance (perfRatio)
-    // - L'écart du CPM Revenue au Cap (pour équilibrer)
-    
     const itemsWithScore = optimizedItems.map(item => {
-      // Score de performance
       let perfScore = Math.pow(Math.max(0.1, item.perfRatio), 2);
       
-      // Bonus si la ligne aide à atteindre le Cap moyen
       const cpmRevRatio = item.newCpmRevenue / targetCpmRev;
       let capAlignmentBonus = 1;
       
       if (currentWeightedCpmRev < targetCpmRev) {
-        // On est en dessous du Cap : on privilégie les lignes avec un CPM Revenue élevé
         capAlignmentBonus = 1 + (cpmRevRatio - 1) * 0.5;
       } else {
-        // On est au-dessus du Cap : on privilégie les lignes avec un CPM Revenue bas
         capAlignmentBonus = 1 + (1 - cpmRevRatio) * 0.5;
       }
       
       capAlignmentBonus = Math.max(0.5, Math.min(1.5, capAlignmentBonus));
       
-      // Score final
       let allocationScore = 0;
       if (item.perfRatio === 0) {
         allocationScore = 0;
@@ -388,7 +440,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       return { ...item, allocationScore, capAlignmentBonus };
     });
     
-    // Réallocation des budgets
     const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
     const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
     
@@ -400,7 +451,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           finalSpend = (li.spend || 0) * 0.1;
         } else {
           const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-          // Lissage 70/30 pour éviter les changements trop brutaux
           finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
         }
       }
@@ -415,7 +465,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       };
     });
     
-    // Vérification finale : calcul du CPM Revenue moyen après optimisation
     const finalTotalSpend = optimizedItems.reduce((acc, li) => acc + li.spend, 0);
     const finalWeightedCpmRev = finalTotalSpend > 0 
       ? optimizedItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
@@ -426,14 +475,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     console.log(`📊 Écart final : ${Math.abs(finalWeightedCpmRev - targetCpmRev).toFixed(2)} ${currSym}`);
     
   } else {
-    // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU (OPTIMISATION LIBRE)
-    
     optimizedItems = scoredItems.map(li => {
       let newMargin = li.marginPct;
       let newSpend = li.spend || 0;
       let newCpmRevenue = li.cpmRevenue;
       
-      // Ajustement de la marge
       if (isFin && li.perfRatio === 0) {
         newMargin = li.marginPct;
       } else if (li.perfRatio < 1.0) {
@@ -454,7 +500,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       newMargin = Math.max(5, Math.min(95, newMargin));
       
-      // Ajustement du CPM Revenue (liberté totale)
       if (marginGoal === "increase") {
         if (li.perfRatio >= 1.2) {
           newCpmRevenue = li.cpmRevenue * 1.08;
@@ -470,7 +515,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       return { ...li, newMargin, newCpmRevenue };
     });
     
-    // Réallocation des budgets (logique standard)
     const itemsWithScore = optimizedItems.map(item => {
       let allocationScore = 0;
       
@@ -536,6 +580,72 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       alert("Optimisations appliquées avec succès.");
     }
   };
+
+  // ✅ FONCTION : Préparer les données des graphiques
+  const prepareChartData = () => {
+    if (!project.dailyEntries || project.dailyEntries.length === 0) return [];
+
+    if (chartTimeRange === "daily") {
+      return project.dailyEntries.map(entry => ({
+        date: new Date(entry.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+        fullDate: entry.date,
+        budgetCumul: entry.budgetSpentCumulative,
+        budgetDaily: entry.budgetSpentYesterday,
+        cpmRev: entry.cpmRevenueYesterday,
+        marginPct: entry.marginPctYesterday,
+        kpi: entry.kpiYesterday
+      }));
+    } else {
+      // Mode hebdomadaire : agrégation par semaine
+      const weeklyData: Record<string, {
+        budgetCumul: number;
+        budgetWeekly: number;
+        cpmRevSum: number;
+        marginSum: number;
+        kpiSum: number;
+        count: number;
+      }> = {};
+
+      project.dailyEntries.forEach(entry => {
+        const date = new Date(entry.date);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay() + 1); // Lundi de la semaine
+        const weekKey = weekStart.toISOString().split('T')[0];
+
+        if (!weeklyData[weekKey]) {
+          weeklyData[weekKey] = {
+            budgetCumul: 0,
+            budgetWeekly: 0,
+            cpmRevSum: 0,
+            marginSum: 0,
+            kpiSum: 0,
+            count: 0
+          };
+        }
+
+        weeklyData[weekKey].budgetCumul = entry.budgetSpentCumulative; // Dernière valeur
+        weeklyData[weekKey].budgetWeekly += entry.budgetSpentYesterday;
+        weeklyData[weekKey].cpmRevSum += entry.cpmRevenueYesterday;
+        weeklyData[weekKey].marginSum += entry.marginPctYesterday;
+        weeklyData[weekKey].kpiSum += entry.kpiYesterday;
+        weeklyData[weekKey].count += 1;
+      });
+
+      return Object.entries(weeklyData)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([weekKey, data]) => ({
+          date: `Sem. ${new Date(weekKey).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`,
+          fullDate: weekKey,
+          budgetCumul: data.budgetCumul,
+          budgetDaily: data.budgetWeekly, // Budget total de la semaine
+          cpmRev: data.cpmRevSum / data.count,
+          marginPct: data.marginSum / data.count,
+          kpi: data.kpiSum / data.count
+        }));
+    }
+  };
+
+  const chartData = prepareChartData();
 
   return (
     <div className="flex h-full overflow-hidden bg-[#f8f9fa] relative">
@@ -895,6 +1005,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                 { id: "analyse", label: "💰 Analyse" },
                 { id: "comparateur", label: "🧮 Marge" },
                 { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
+                { id: "suivi", label: "📊 Suivi Quotidien" },
                 { id: "historique", label: "📜 Historique" },
                 { id: "notes", label: "📝 Notes" }
               ].map(t => (
@@ -964,14 +1075,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
 
-                    {/* Bloc Calculation IIFE MODIFIÉ */}
                     {(() => {
                       const newMargin = currentMarginPctCalc + uplift;
                       const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
 
                       const budgetRestant = project.budgetTotal - project.budgetSpent;
                       
-                      // Calcul du cost déjà dépensé avec l'ancienne marge
                       const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
                       
                       let costDSP = 0;
@@ -979,13 +1088,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
                       if (project.inputMode === "CPM Cost") {
                         if (uplift >= 0) {
-                          // Cas Hausse de marge : 
-                          // 1. On calcule le nouveau budget cost pour ce qu'il reste à dépenser
                           costDSP = budgetRestant * (1 - newMargin / 100);
-                          // 2. On calcule le total (ce qui a été dépensé + ce qu'il reste à dépenser)
                           totalCostDSP = costDejaDepense + costDSP;
                         } else {
-                          // Cas Baisse de marge :
                           const costRestant = budgetRestant * (1 - newMargin / 100);
                           costDSP = costDejaDepense + costRestant;
                           totalCostDSP = costDSP;
@@ -1010,7 +1115,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
                                 </div>
                                 
-                                {/* --- NOUVEAU BLOC : Affichage du Total à saisir en cas de hausse --- */}
                                 {uplift > 0 && (
                                    <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
                                      <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
@@ -1031,7 +1135,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
                          
-                    {/* Bouton Appliquer */}
                     <div className="flex justify-end mt-6">
                       <button 
                         onClick={applyMarginChange}
@@ -1063,6 +1166,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         )}
                       </button>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-6 mt-8">
 
                     {/* Options 1 & 2 */}
                     <div className="grid grid-cols-2 gap-6 mt-8">
@@ -1354,6 +1459,348 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   </div>
                 </div>
               )}
+                  </div>
+
+                    <div className="mt-8 pt-8 border-t border-gray-100">
+                      {/* Graphique Projection - code existant inchangé */}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "multilines" && (
+                <div className="space-y-6">
+                  {/* Code existant Multi-Lines inchangé */}
+                </div>
+              )}
+
+              {/* ✅ NOUVEL ONGLET : SUIVI QUOTIDIEN */}
+              {activeTab === "suivi" && (
+                <div className="space-y-8">
+                  {!project?.id ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+                      <div className="text-4xl mb-3">⚠️</div>
+                      <h4 className="font-bold text-amber-900 mb-2">Projet non sauvegardé</h4>
+                      <p className="text-sm text-amber-700">
+                        Vous devez sauvegarder votre projet avant d'utiliser le suivi quotidien.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-gray-900">📊 Suivi Quotidien de Campagne</h3>
+                        <div className="text-sm text-gray-500">
+                          {project.dailyEntries?.length || 0} entrée(s)
+                        </div>
+                      </div>
+
+                      {/* Formulaire de saisie quotidienne */}
+                      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">
+                            <Calendar className="w-4 h-4" />
+                          </span>
+                          Saisir les performances du jour
+                        </h4>
+
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1.5 font-medium">Date</label>
+                            <input 
+                              type="date"
+                              className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              value={dailyForm.date}
+                              onChange={(e) => setDailyForm({...dailyForm, date: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                              Budget Dépensé Hier ({currSym})
+                            </label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              value={dailyForm.budgetSpentYesterday}
+                              onChange={(e) => setDailyForm({...dailyForm, budgetSpentYesterday: Number(e.target.value)})}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                              CPM Revenue Hier ({currSym})
+                            </label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              value={dailyForm.cpmRevenueYesterday}
+                              onChange={(e) => setDailyForm({...dailyForm, cpmRevenueYesterday: Number(e.target.value)})}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                              Marge % Hier
+                            </label>
+                            <input 
+                              type="number"
+                              step="0.1"
+                              className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              value={dailyForm.marginPctYesterday}
+                              onChange={(e) => setDailyForm({...dailyForm, marginPctYesterday: Number(e.target.value)})}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                              {project.kpiType} Hier
+                            </label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              value={dailyForm.kpiYesterday}
+                              onChange={(e) => setDailyForm({...dailyForm, kpiYesterday: Number(e.target.value)})}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Prévisualisation */}
+                        {showDailyPreview && (
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4">
+                            <h5 className="font-bold text-indigo-900 mb-3 text-sm">📋 Prévisualisation de la mise à jour</h5>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div className="bg-white p-2 rounded">
+                                <div className="text-gray-500 mb-1">Budget Cumulé</div>
+                                <div className="font-bold text-gray-900">
+                                  {project.budgetSpent.toFixed(2)} → {(project.budgetSpent + dailyForm.budgetSpentYesterday).toFixed(2)} {currSym}
+                                </div>
+                              </div>
+                              <div className="bg-white p-2 rounded">
+                                <div className="text-gray-500 mb-1">CPM Revenue</div>
+                                <div className="font-bold text-gray-900">
+                                  {project.cpmRevenueActual.toFixed(2)} → {dailyForm.cpmRevenueYesterday.toFixed(2)} {currSym}
+                                </div>
+                              </div>
+                              <div className="bg-white p-2 rounded">
+                                <div className="text-gray-500 mb-1">Marge %</div>
+                                <div className="font-bold text-gray-900">
+                                  {project.margeInput.toFixed(2)} → {dailyForm.marginPctYesterday.toFixed(2)} %
+                                </div>
+                              </div>
+                              <div className="bg-white p-2 rounded">
+                                <div className="text-gray-500 mb-1">{project.kpiType}</div>
+                                <div className="font-bold text-gray-900">
+                                  {project.actualKpi.toFixed(2)} → {dailyForm.kpiYesterday.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end gap-3">
+                          {showDailyPreview ? (
+                            <>
+                              <button
+                                onClick={() => setShowDailyPreview(false)}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                                Annuler
+                              </button>
+                              <button
+                                onClick={applyDailyEntry}
+                                className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                              >
+                                <Check className="w-4 h-4" />
+                                ✅ Appliquer
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setShowDailyPreview(true)}
+                              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                            >
+                              📊 Prévisualiser
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Graphiques de suivi */}
+                      {chartData.length > 0 && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-gray-900">📈 Évolution des KPIs</h4>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setChartTimeRange("daily")}
+                                className={cn("px-4 py-2 text-sm font-bold rounded-lg transition-colors",
+                                  chartTimeRange === "daily" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                )}
+                              >
+                                Quotidien
+                              </button>
+                              <button
+                                onClick={() => setChartTimeRange("weekly")}
+                                className={cn("px-4 py-2 text-sm font-bold rounded-lg transition-colors",
+                                  chartTimeRange === "weekly" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                )}
+                              >
+                                Hebdomadaire
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Graphique Budget Cumulé */}
+                          <div className="bg-white border border-gray-100 rounded-xl p-6">
+                            <h5 className="font-bold text-gray-900 mb-4">💰 Budget Cumulé</h5>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                  <defs>
+                                    <linearGradient id="colorBudget" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `${val.toFixed(0)} ${currSym}`} />
+                                  <Tooltip formatter={(value: number) => `${value.toFixed(2)} ${currSym}`} />
+                                  <Area type="monotone" dataKey="budgetCumul" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorBudget)" />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          {/* Graphique CPM Revenue & Marge */}
+                          <div className="bg-white border border-gray-100 rounded-xl p-6">
+                            <h5 className="font-bold text-gray-900 mb-4">📊 CPM Revenue & Marge %</h5>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `${val.toFixed(2)} ${currSym}`} />
+                                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `${val.toFixed(0)}%`} />
+                                  <Tooltip />
+                                  <Legend />
+                                  <Line yAxisId="left" type="monotone" dataKey="cpmRev" stroke="#3b82f6" strokeWidth={3} name={`CPM Rev (${currSym})`} />
+                                  <Line yAxisId="right" type="monotone" dataKey="marginPct" stroke="#10b981" strokeWidth={3} name="Marge %" />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          {/* Graphique KPI */}
+                          <div className="bg-white border border-gray-100 rounded-xl p-6">
+                            <h5 className="font-bold text-gray-900 mb-4">🎯 {project.kpiType}</h5>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                                  <Tooltip formatter={(value: number) => value.toFixed(2)} />
+                                  <Bar dataKey="kpi" fill="#f59e0b" name={project.kpiType} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Historique des entrées quotidiennes */}
+                      {project.dailyEntries && project.dailyEntries.length > 0 && (
+                        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                          <div className="p-6 border-b border-gray-100">
+                            <h4 className="font-bold text-gray-900">📅 Historique des Saisies</h4>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                  <th className="px-6 py-4">Date</th>
+                                  <th className="px-6 py-4">Budget Jour</th>
+                                  <th className="px-6 py-4">Budget Cumulé</th>
+                                  <th className="px-6 py-4">CPM Rev</th>
+                                  <th className="px-6 py-4">Marge %</th>
+                                  <th className="px-6 py-4">KPI</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {[...project.dailyEntries].reverse().map((entry) => (
+                                  <tr key={entry.id} className="hover:bg-gray-50">
+                                    <td className="px-6 py-3 font-medium text-gray-900">
+                                      {new Date(entry.date).toLocaleDateString('fr-FR', { 
+                                        weekday: 'short',
+                                        day: '2-digit',
+                                        month: 'short'
+                                      })}
+                                    </td>
+                                    <td className="px-6 py-3 text-gray-600">{entry.budgetSpentYesterday.toFixed(2)} {currSym}</td>
+                                    <td className="px-6 py-3 text-blue-600 font-bold">{entry.budgetSpentCumulative.toFixed(2)} {currSym}</td>
+                                    <td className="px-6 py-3 text-gray-600">{entry.cpmRevenueYesterday.toFixed(2)} {currSym}</td>
+                                    <td className="px-6 py-3 text-emerald-600 font-bold">{entry.marginPctYesterday.toFixed(2)}%</td>
+                                    <td className="px-6 py-3 text-gray-600">{entry.kpiYesterday.toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "historique" && (
+                <div className="space-y-6">
+                  {/* Code existant Historique inchangé */}
+                </div>
+              )}
+
+              {activeTab === "notes" && (
+                <div className="space-y-6">
+                  {/* Code existant Notes inchangé */}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: string, value: string, subValue?: string, accent: "indigo" | "emerald" | "red", icon: any }) {
+  return (
+    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[110px]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{title}</div>
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center",
+          accent === "indigo" ? "bg-blue-50 text-blue-600" :
+          accent === "emerald" ? "bg-emerald-50 text-emerald-600" :
+          "bg-red-50 text-red-600"
+        )}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      <div>
+        <div className="text-2xl font-black text-gray-900">{value}</div>
+        {subValue && (
+          <div className={cn("text-xs font-bold mt-1.5 flex items-center gap-1", 
+            accent === "emerald" ? "text-emerald-500" : 
+            accent === "red" ? "text-red-500" : "text-gray-500"
+          )}>
+            {subValue}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
               {activeTab === "multilines" && (
                 <div className="space-y-6">
