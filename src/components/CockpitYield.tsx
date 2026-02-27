@@ -1,5 +1,5 @@
 import { useState, ChangeEvent, useEffect } from "react";
-import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod } from "../types";
+import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote } from "../types";
 import { cn } from "../utils/cn";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
@@ -11,13 +11,13 @@ interface CockpitYieldProps {
 }
 
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
-  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique">("analyse");
+  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique" | "notes">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
   const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
-  const [respectCpmCap, setRespectCpmCap] = useState<boolean>(true);  // 👈 NOUVELLE LIGNE
+  const [respectCpmCap, setRespectCpmCap] = useState<boolean>(true);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
@@ -248,7 +248,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   const availableSpend = Math.max(0, totalSpend - lockedSpend);
   
-  // Calcul des ratios de performance
   const scoredItems = project.lineItems.map(li => {
     const actual = li.kpiActual || 0;
     const target = project.targetKpi || 0.0001;
@@ -283,13 +282,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const unlockedItems = scoredItems.filter(li => !lockedLines.has(li.id));
   const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
   
-  // 🎯 OPTIMISATION AVEC OU SANS CONTRAINTE CPM CAP
   const optimizedItems = scoredItems.map(li => {
     let newMargin = li.marginPct;
     let newSpend = li.spend || 0;
     let newCpmRevenue = li.cpmRevenue;
     
-    // ==== AJUSTEMENT DE LA MARGE ====
     if (isFin && li.perfRatio === 0) {
       newMargin = li.marginPct;
     } else if (li.perfRatio < 1.0) {
@@ -308,50 +305,34 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       }
     }
     
-    // Limite de marge
     newMargin = Math.max(5, Math.min(95, newMargin));
     
-    // ==== APPLICATION DE LA CONTRAINTE CPM CAP ====
     if (respectCpmCap) {
-      // 🛡️ MODE : RESPECTER LE CPM VENDU CAP
-      // On ne peut PAS dépasser project.cpmSoldCap
-      
       if (li.cpmRevenue > project.cpmSoldCap) {
-        // Déjà au-dessus du cap : on ramène au cap
         newCpmRevenue = project.cpmSoldCap;
       } else {
-        // En dessous du cap : on peut monter jusqu'au cap
         if (marginGoal === "increase") {
-          // Pour augmenter la marge, on DOIT baisser le Cost (on ne peut pas monter le Revenu au-delà du Cap)
-          // Le CPM Revenu reste inchangé (ou monte jusqu'au cap max)
           const maxPossibleRevenue = Math.min(project.cpmSoldCap, li.cpmRevenue * 1.05);
           newCpmRevenue = maxPossibleRevenue;
         } else {
-          // Pour baisser la marge (boost KPI), on peut légèrement baisser le Revenu
           newCpmRevenue = Math.max(li.cpmRevenue * 0.97, project.cpmSoldCap * 0.9);
         }
       }
       
     } else {
-      // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU CAP
-      // Liberté totale d'optimisation
-      
       if (marginGoal === "increase") {
-        // Augmenter marge : on peut monter le CPM Revenu librement
         if (li.perfRatio >= 1.2) {
-          newCpmRevenue = li.cpmRevenue * 1.08; // +8%
+          newCpmRevenue = li.cpmRevenue * 1.08;
         } else if (li.perfRatio >= 1.0) {
-          newCpmRevenue = li.cpmRevenue * 1.05; // +5%
+          newCpmRevenue = li.cpmRevenue * 1.05;
         }
       } else {
-        // Baisser marge : on baisse légèrement le Revenu pour rester compétitif
         if (li.perfRatio >= 1.0) {
-          newCpmRevenue = li.cpmRevenue * 0.97; // -3%
+          newCpmRevenue = li.cpmRevenue * 0.97;
         }
       }
     }
     
-    // ==== RÉALLOCATION DU BUDGET ====
     if (!lockedLines.has(li.id)) {
       if (isFin && li.perfRatio === 0) {
         newSpend = (li.spend || 0) * 0.1;
@@ -753,7 +734,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                 { id: "analyse", label: "💰 Analyse" },
                 { id: "comparateur", label: "🧮 Marge" },
                 { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
-                { id: "historique", label: "📜 Historique" }
+                { id: "historique", label: "📜 Historique" },
+                { id: "notes", label: "📝 Notes" }
               ].map(t => (
                 <button
                   key={t.id}
@@ -1684,6 +1666,144 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   )}
                 </div>
               )}
+
+              {activeTab === "notes" && (
+  <div className="space-y-6">
+    {/* Vérifier que c'est un projet sauvegardé */}
+    {!project?.id ? (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+        <div className="text-4xl mb-3">⚠️</div>
+        <h4 className="font-bold text-amber-900 mb-2">Projet non sauvegardé</h4>
+        <p className="text-sm text-amber-700">
+          Vous devez sauvegarder votre projet avant de pouvoir ajouter des notes.
+        </p>
+      </div>
+    ) : (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">Notes de campagne</h3>
+          <div className="text-sm text-gray-500">
+            {project.notes?.length || 0} note(s)
+          </div>
+        </div>
+
+        {/* Formulaire d'ajout de note */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">✍️</span>
+            Ajouter une note
+          </h4>
+          <textarea
+            id="note-input"
+            placeholder="Écrivez votre note ici... (ex: Optimisation manuelle effectuée sur la ligne 'Display Mobile')"
+            className="w-full h-32 text-sm border-gray-200 bg-gray-50 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+          />
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={() => {
+                const input = document.getElementById('note-input') as HTMLTextAreaElement;
+                const content = input?.value.trim();
+                
+                if (!content) {
+                  alert("Veuillez écrire une note avant de sauvegarder.");
+                  return;
+                }
+                
+                const newNote: ProjectNote = {
+                  id: Date.now().toString(),
+                  timestamp: new Date().toISOString(),
+                  content
+                };
+                
+                const updatedNotes = [...(project.notes || []), newNote];
+                
+                onChange({
+                  ...project,
+                  notes: updatedNotes,
+                  updatedAt: new Date().toISOString()
+                });
+                
+                input.value = '';
+                alert("✅ Note sauvegardée !");
+              }}
+              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              💾 Sauvegarder la note
+            </button>
+          </div>
+        </div>
+
+        {/* Liste des notes */}
+        {(!project.notes || project.notes.length === 0) ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+            <div className="text-4xl mb-3">📝</div>
+            <h4 className="font-bold text-gray-700 mb-1">Aucune note</h4>
+            <p className="text-sm text-gray-500">
+              Ajoutez votre première note pour documenter vos optimisations.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {[...project.notes].reverse().map((note) => {
+              const date = new Date(note.timestamp);
+              const isToday = date.toDateString() === new Date().toDateString();
+              
+              return (
+                <div key={note.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                        📝
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          {date.toLocaleDateString('fr-FR', { 
+                            weekday: 'long',
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric'
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          {isToday && (
+                            <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              AUJOURD'HUI
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm("Supprimer cette note ?")) {
+                          const updatedNotes = project.notes?.filter(n => n.id !== note.id) || [];
+                          onChange({
+                            ...project,
+                            notes: updatedNotes,
+                            updatedAt: new Date().toISOString()
+                          });
+                        }
+                      }}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {note.content}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
             </div>
           </div>
         </div>
