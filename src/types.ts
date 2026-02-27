@@ -6,8 +6,6 @@ export interface LineItem {
   marginPct: number;
   kpiActual: number;
   
-  // --- CHAMPS AJOUTÉS POUR CORRIGER LES ERREURS DE BUILD ---
-  // Ils sont marqués '?' car ils sont calculés et pas toujours présents
   allocationScore?: number;
   capAlignmentBonus?: number;
   perfRatio?: number;
@@ -15,13 +13,10 @@ export interface LineItem {
   newMargin?: number;
 }
 
-// --- CORRECTION ICI ---
-// On remplace 'text' par 'content' et 'date' par 'timestamp'
-// pour correspondre à ton code dans CockpitYield.tsx
 export interface ProjectNote {
   id: string;
   content: string; 
-  timestamp: string; // Si tu utilises Date.now(), change "string" par "number" ici
+  timestamp: string;
 }
 
 export interface ProjectSnapshot {
@@ -32,7 +27,7 @@ export interface ProjectSnapshot {
   cpmRevenueActual: number;
   actualKpi: number;
   gainRealized: number;
-  action: "SAVE" | "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION";
+  action: "SAVE" | "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION" | "DAILY_UPDATE";
   note?: string;
 }
 
@@ -40,6 +35,18 @@ export interface MarginPeriod {
   startDate: string;
   marginPct: number;
   budgetSpentAtStart: number;
+}
+
+// ✅ NOUVELLE INTERFACE : Suivi quotidien
+export interface DailyEntry {
+  id: string;
+  date: string; // Format ISO : "2026-02-27"
+  budgetSpentYesterday: number; // Budget dépensé la veille
+  cpmRevenueYesterday: number; // CPM Revenue moyen sur la veille
+  marginPctYesterday: number; // Marge % moyenne sur la veille
+  kpiYesterday: number; // KPI réalisé la veille
+  budgetSpentCumulative: number; // Budget cumulé jusqu'à ce jour
+  appliedAt: string; // Timestamp d'application
 }
 
 export interface ProjectData {
@@ -64,8 +71,8 @@ export interface ProjectData {
   lastModified: number;
   uplift?: number;
   marginPeriods?: MarginPeriod[];
-  // Le champ notes utilise maintenant la bonne interface
   notes?: ProjectNote[];
+  dailyEntries?: DailyEntry[]; // ✅ NOUVEAU : Suivi quotidien
 }
 
 export const DEFAULT_PROJECT: ProjectData = {
@@ -91,4 +98,5 @@ export const DEFAULT_PROJECT: ProjectData = {
   uplift: 3.0,
   marginPeriods: [],
   notes: [],
+  dailyEntries: [], // ✅ NOUVEAU
 };
