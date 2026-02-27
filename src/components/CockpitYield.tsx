@@ -494,7 +494,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </div>
           </div>
 
-       {/* 3. Achat */}
+      {/* 3. Achat */}
 <div className="space-y-4 pt-6 border-t border-gray-100">
   <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
   <div className="grid grid-cols-2 gap-3">
@@ -536,7 +536,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         type="number" 
         step="0.5"
         className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-        value={project.inputMode === "Marge %" ? project.margeInput.toFixed(2) : currentMarginPctCalc.toFixed(2)}
+        value={
+          project.inputMode === "Marge %" 
+            ? project.margeInput.toFixed(2)
+            : Math.round(currentMarginPctCalc)
+        }
         onChange={(e) => {
           const newMarge = Number(e.target.value);
           
