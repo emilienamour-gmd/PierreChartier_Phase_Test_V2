@@ -5,6 +5,14 @@ export interface LineItem {
   cpmRevenue: number;
   marginPct: number;
   kpiActual: number;
+  
+  // --- CHAMPS AJOUTÉS POUR CORRIGER LES ERREURS DE BUILD ---
+  // Ils sont marqués '?' car ils sont calculés et pas toujours présents
+  allocationScore?: number;
+  capAlignmentBonus?: number;
+  perfRatio?: number;
+  newCpmRevenue?: number;
+  newMargin?: number;
 }
 
 // --- CORRECTION ICI ---
