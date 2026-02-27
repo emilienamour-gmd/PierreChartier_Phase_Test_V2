@@ -393,56 +393,83 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </div>
           </div>
 
-          {/* 1. Campagne */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
-              <select 
-                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                value={project.currency}
-                onChange={(e) => updateField("currency", e.target.value)}
-              >
-                <option>€ (EUR)</option>
-                <option>$ (USD)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Budget Total ({currSym})</label>
-              <input 
-                type="number" 
-                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                value={project.budgetTotal}
-                onChange={(e) => updateField("budgetTotal", Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Budget Dépensé ({currSym})</label>
-              <input 
-                type="number" 
-                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                value={project.budgetSpent}
-                onChange={(e) => updateField("budgetSpent", Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Durée (Jours)</label>
-              <input 
-                type="range" 
-                min="0" max="365"
-                className="w-full accent-blue-600"
-                value={project.durationDays}
-                onChange={(e) => updateField("durationDays", Number(e.target.value))}
-              />
-              <div className="text-xs text-gray-500 mt-1 text-right font-medium">{project.durationDays} jours</div>
-            </div>
-            {project.durationDays > 0 && (
-              <div className="w-full bg-gray-100 rounded-full h-2 mt-2 overflow-hidden">
-                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${pctProgress * 100}%` }}></div>
-                <div className="text-[10px] text-gray-400 mt-1.5 text-right font-medium">Jour {currentDay}/{project.durationDays}</div>
-              </div>
-            )}
-          </div>
+         {/* 1. Campagne */}
+<div className="space-y-4">
+  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
+  <div>
+    <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
+    <select 
+      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+      value={project.currency}
+      onChange={(e) => updateField("currency", e.target.value)}
+    >
+      <option>€ (EUR)</option>
+      <option>$ (USD)</option>
+    </select>
+  </div>
+  <div>
+    <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+      {project.inputMode === "CPM Cost" ? `Budget Total Rev (${currSym})` : `Budget Total (${currSym})`}
+    </label>
+    <input 
+      type="number" 
+      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+      value={project.budgetTotal}
+      onChange={(e) => updateField("budgetTotal", Number(e.target.value))}
+    />
+  </div>
+  <div>
+    <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+      {project.inputMode === "CPM Cost" ? `Budget Dépensé Rev (${currSym})` : `Budget Dépensé (${currSym})`}
+    </label>
+    <input 
+      type="number" 
+      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+      value={project.budgetSpent}
+      onChange={(e) => updateField("budgetSpent", Number(e.target.value))}
+    />
+  </div>
+  
+  {project.inputMode === "CPM Cost" && (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+        Budget Dépensé Cost ({currSym})
+      </label>
+      <div className="relative">
+        <input 
+          type="number"
+          className="w-full text-sm border-gray-200 bg-blue-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-blue-900"
+          value={(project.budgetSpent * (1 - currentMarginPctCalc / 100)).toFixed(2)}
+          readOnly
+        />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">
+          Auto
+        </div>
+      </div>
+      <div className="text-[10px] text-gray-500 mt-1.5 italic">
+        = Budget Dépensé Rev × (1 - Marge {currentMarginPctCalc.toFixed(2)}%)
+      </div>
+    </div>
+  )}
+  
+  <div>
+    <label className="block text-xs text-gray-500 mb-1.5 font-medium">Durée (Jours)</label>
+    <input 
+      type="range" 
+      min="0" max="365"
+      className="w-full accent-blue-600"
+      value={project.durationDays}
+      onChange={(e) => updateField("durationDays", Number(e.target.value))}
+    />
+    <div className="text-xs text-gray-500 mt-1 text-right font-medium">{project.durationDays} jours</div>
+  </div>
+  {project.durationDays > 0 && (
+    <div className="w-full bg-gray-100 rounded-full h-2 mt-2 overflow-hidden">
+      <div className="bg-blue-500 h-full rounded-full" style={{ width: `${pctProgress * 100}%` }}></div>
+      <div className="text-[10px] text-gray-400 mt-1.5 text-right font-medium">Jour {currentDay}/{project.durationDays}</div>
+    </div>
+  )}
+</div>
 
           {/* 2. Finance */}
           <div className="space-y-4 pt-6 border-t border-gray-100">
@@ -468,41 +495,39 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           </div>
 
           {/* 3. Achat */}
-          <div className="space-y-4 pt-6 border-t border-gray-100">
-            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Cost ({currSym})</label>
-                <input 
-                  type="number" step="0.01"
-                  className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={project.inputMode === "CPM Cost" ? project.cpmCostActuel : Number(cpmCostActuelCalc.toFixed(2))}
-                  onChange={(e) => {
-                    onChange({
-                      ...project,
-                      inputMode: "CPM Cost",
-                      cpmCostActuel: Number(e.target.value)
-                    });
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1.5 font-medium">Marge %</label>
-                <input 
-                  type="number" step="0.5"
-                  className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  value={project.inputMode === "Marge %" ? project.margeInput : Number(currentMarginPctCalc.toFixed(2))}
-                  onChange={(e) => {
-                    onChange({
-                      ...project,
-                      inputMode: "Marge %",
-                      margeInput: Number(e.target.value)
-                    });
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+<div className="space-y-4 pt-6 border-t border-gray-100">
+  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Cost ({currSym})</label>
+      <input 
+        type="number" step="0.01"
+        className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+        value={project.inputMode === "CPM Cost" ? project.cpmCostActuel : Number(cpmCostActuelCalc.toFixed(2))}
+        onChange={(e) => {
+          onChange({
+            ...project,
+            cpmCostActuel: Number(e.target.value)
+          });
+        }}
+      />
+    </div>
+    <div>
+      <label className="block text-xs text-gray-500 mb-1.5 font-medium">Marge %</label>
+      <input 
+        type="number" step="0.5"
+        className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+        value={project.inputMode === "Marge %" ? project.margeInput : Number(currentMarginPctCalc.toFixed(2))}
+        onChange={(e) => {
+          onChange({
+            ...project,
+            margeInput: Number(e.target.value)
+          });
+        }}
+      />
+    </div>
+  </div>
+</div>
 
           {/* 4. KPI */}
           <div className="space-y-4 pt-6 border-t border-gray-100">
