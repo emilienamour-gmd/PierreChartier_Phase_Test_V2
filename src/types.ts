@@ -7,6 +7,13 @@ export interface LineItem {
   kpiActual: number;
 }
 
+// --- AJOUT DE L'INTERFACE PROJECTNOTE ---
+export interface ProjectNote {
+  id: string;
+  text: string;
+  date: string;
+}
+
 export interface ProjectSnapshot {
   timestamp: string;
   budgetSpent: number;
@@ -47,6 +54,8 @@ export interface ProjectData {
   lastModified: number;
   uplift?: number;
   marginPeriods?: MarginPeriod[];
+  // --- AJOUT DU CHAMP NOTES ---
+  notes?: ProjectNote[];
 }
 
 export const DEFAULT_PROJECT: ProjectData = {
@@ -71,4 +80,6 @@ export const DEFAULT_PROJECT: ProjectData = {
   lastModified: 0,
   uplift: 3.0,
   marginPeriods: [],
+  // --- INITIALISATION DU CHAMP NOTES ---
+  notes: [],
 };
