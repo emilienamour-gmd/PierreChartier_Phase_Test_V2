@@ -248,6 +248,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   const availableSpend = Math.max(0, totalSpend - lockedSpend);
   
+  // ==== ÉTAPE 1 : CALCUL DES RATIOS DE PERFORMANCE ====
   const scoredItems = project.lineItems.map(li => {
     const actual = li.kpiActual || 0;
     const target = project.targetKpi || 0.0001;
@@ -264,62 +265,196 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       perfRatio = actual / target;
     }
     
-    let allocationScore = 0;
-    
-    if (perfRatio === 0) {
-      allocationScore = 0; 
-    } else {
-      if (marginGoal === "increase") {
-        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
-      } else {
-        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
-      }
-    }
-    
-    return { ...li, perfRatio, allocationScore };
+    return { ...li, perfRatio };
   });
   
-  const unlockedItems = scoredItems.filter(li => !lockedLines.has(li.id));
-  const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+  // ==== ÉTAPE 2 : OPTIMISATION SELON LE MODE ====
+  let optimizedItems: LineItem[] = [];
   
-  const optimizedItems = scoredItems.map(li => {
-    let newMargin = li.marginPct;
-    let newSpend = li.spend || 0;
-    let newCpmRevenue = li.cpmRevenue;
+  if (respectCpmCap) {
+    // 🎯 MODE : RESPECTER LE CPM VENDU CAP (NOUVELLE LOGIQUE INTELLIGENTE)
     
-    if (isFin && li.perfRatio === 0) {
-      newMargin = li.marginPct;
-    } else if (li.perfRatio < 1.0) {
-      if (marginGoal === "increase") {
+    // Calcul du CPM Revenue moyen actuel
+    const currentWeightedCpmRev = totalSpend > 0 
+      ? scoredItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / totalSpend
+      : 0;
+    
+    // Objectif : atteindre le CPM Sold Cap en moyenne pondérée
+    const targetCpmRev = project.cpmSoldCap;
+    const cpmRevGap = targetCpmRev - currentWeightedCpmRev;
+    
+    console.log(`📊 CPM Revenue actuel moyen : ${currentWeightedCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`🎯 CPM Revenue cible (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`📈 Écart à combler : ${cpmRevGap.toFixed(2)} ${currSym}`);
+    
+    // ==== STRATÉGIE D'OPTIMISATION INTELLIGENTE ====
+    optimizedItems = scoredItems.map(li => {
+      let newMargin = li.marginPct;
+      let newSpend = li.spend || 0;
+      let newCpmRevenue = li.cpmRevenue;
+      
+      // --- 1. AJUSTEMENT DE LA MARGE ---
+      if (isFin && li.perfRatio === 0) {
         newMargin = li.marginPct;
-      } else {
-        newMargin = Math.max(5, li.marginPct - 5);
-      }
-    } else {
-      if (marginGoal === "increase") {
-        if (li.perfRatio >= 1.2) newMargin += 5;
-        else if (li.perfRatio >= 1.0) newMargin += 2;
-      } else if (marginGoal === "decrease") {
-        if (li.perfRatio >= 1.2) newMargin -= 2;
-        else if (li.perfRatio > 1.0) newMargin -= 5;
-      }
-    }
-    
-    newMargin = Math.max(5, Math.min(95, newMargin));
-    
-    if (respectCpmCap) {
-      if (li.cpmRevenue > project.cpmSoldCap) {
-        newCpmRevenue = project.cpmSoldCap;
+      } else if (li.perfRatio < 1.0) {
+        if (marginGoal === "increase") {
+          newMargin = li.marginPct;
+        } else {
+          newMargin = Math.max(5, li.marginPct - 5);
+        }
       } else {
         if (marginGoal === "increase") {
-          const maxPossibleRevenue = Math.min(project.cpmSoldCap, li.cpmRevenue * 1.05);
-          newCpmRevenue = maxPossibleRevenue;
-        } else {
-          newCpmRevenue = Math.max(li.cpmRevenue * 0.97, project.cpmSoldCap * 0.9);
+          if (li.perfRatio >= 1.2) newMargin += 5;
+          else if (li.perfRatio >= 1.0) newMargin += 2;
+        } else if (marginGoal === "decrease") {
+          if (li.perfRatio >= 1.2) newMargin -= 2;
+          else if (li.perfRatio > 1.0) newMargin -= 5;
         }
       }
       
-    } else {
+      newMargin = Math.max(5, Math.min(95, newMargin));
+      
+      // --- 2. AJUSTEMENT DU CPM REVENUE (LOGIQUE INTELLIGENTE) ---
+      // On attribue des CPM Revenue différents selon la performance
+      // pour atteindre le CPM Sold Cap en moyenne pondérée
+      
+      const cpmRevRatio = li.cpmRevenue / targetCpmRev; // Écart de la ligne par rapport au Cap
+      
+      if (marginGoal === "increase") {
+        // Augmenter la marge : on veut se rapprocher du Cap
+        if (li.perfRatio >= 1.2) {
+          // Ligne très performante : elle peut aller jusqu'au Cap
+          newCpmRevenue = Math.min(targetCpmRev * 1.0, li.cpmRevenue * 1.05);
+        } else if (li.perfRatio >= 1.0) {
+          // Ligne correcte : elle monte modérément vers le Cap
+          newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 1.03);
+        } else if (li.perfRatio >= 0.8) {
+          // Ligne en difficulté : elle reste en dessous du Cap
+          newCpmRevenue = Math.min(targetCpmRev * 0.85, li.cpmRevenue * 1.01);
+        } else {
+          // Ligne sous-performante : elle baisse pour compenser
+          newCpmRevenue = li.cpmRevenue * 0.97;
+        }
+      } else {
+        // Baisser la marge : on baisse légèrement pour rester compétitif
+        if (li.perfRatio >= 1.0) {
+          newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 0.98);
+        } else {
+          newCpmRevenue = li.cpmRevenue * 0.95;
+        }
+      }
+      
+      // Contrainte absolue : jamais au-dessus du Cap
+      newCpmRevenue = Math.min(targetCpmRev, newCpmRevenue);
+      
+      return { ...li, newMargin, newCpmRevenue, perfRatio: li.perfRatio };
+    });
+    
+    // --- 3. RÉALLOCATION DES BUDGETS POUR OPTIMISER LA MOYENNE PONDÉRÉE ---
+    // On calcule un score composite qui prend en compte :
+    // - La performance (perfRatio)
+    // - L'écart du CPM Revenue au Cap (pour équilibrer)
+    
+    const itemsWithScore = optimizedItems.map(item => {
+      // Score de performance
+      let perfScore = Math.pow(Math.max(0.1, item.perfRatio), 2);
+      
+      // Bonus si la ligne aide à atteindre le Cap moyen
+      const cpmRevRatio = item.newCpmRevenue / targetCpmRev;
+      let capAlignmentBonus = 1;
+      
+      if (currentWeightedCpmRev < targetCpmRev) {
+        // On est en dessous du Cap : on privilégie les lignes avec un CPM Revenue élevé
+        capAlignmentBonus = 1 + (cpmRevRatio - 1) * 0.5;
+      } else {
+        // On est au-dessus du Cap : on privilégie les lignes avec un CPM Revenue bas
+        capAlignmentBonus = 1 + (1 - cpmRevRatio) * 0.5;
+      }
+      
+      capAlignmentBonus = Math.max(0.5, Math.min(1.5, capAlignmentBonus));
+      
+      // Score final
+      let allocationScore = 0;
+      if (item.perfRatio === 0) {
+        allocationScore = 0;
+      } else {
+        if (marginGoal === "increase") {
+          allocationScore = perfScore * capAlignmentBonus * (1 + item.newMargin / 100);
+        } else {
+          allocationScore = perfScore * capAlignmentBonus * (1 + (100 - item.newMargin) / 100);
+        }
+      }
+      
+      return { ...item, allocationScore, capAlignmentBonus };
+    });
+    
+    // Réallocation des budgets
+    const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
+    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    
+    optimizedItems = itemsWithScore.map(li => {
+      let finalSpend = li.spend || 0;
+      
+      if (!lockedLines.has(li.id)) {
+        if (isFin && li.perfRatio === 0) {
+          finalSpend = (li.spend || 0) * 0.1;
+        } else {
+          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          // Lissage 70/30 pour éviter les changements trop brutaux
+          finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        }
+      }
+      
+      return { 
+        id: li.id,
+        name: li.name,
+        spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
+        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
+        marginPct: Number(li.newMargin.toFixed(2)),
+        kpiActual: li.kpiActual
+      };
+    });
+    
+    // Vérification finale : calcul du CPM Revenue moyen après optimisation
+    const finalTotalSpend = optimizedItems.reduce((acc, li) => acc + li.spend, 0);
+    const finalWeightedCpmRev = finalTotalSpend > 0 
+      ? optimizedItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
+      : 0;
+    
+    console.log(`✅ CPM Revenue moyen après optimisation : ${finalWeightedCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`🎯 Objectif (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`📊 Écart final : ${Math.abs(finalWeightedCpmRev - targetCpmRev).toFixed(2)} ${currSym}`);
+    
+  } else {
+    // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU (OPTIMISATION LIBRE)
+    
+    optimizedItems = scoredItems.map(li => {
+      let newMargin = li.marginPct;
+      let newSpend = li.spend || 0;
+      let newCpmRevenue = li.cpmRevenue;
+      
+      // Ajustement de la marge
+      if (isFin && li.perfRatio === 0) {
+        newMargin = li.marginPct;
+      } else if (li.perfRatio < 1.0) {
+        if (marginGoal === "increase") {
+          newMargin = li.marginPct;
+        } else {
+          newMargin = Math.max(5, li.marginPct - 5);
+        }
+      } else {
+        if (marginGoal === "increase") {
+          if (li.perfRatio >= 1.2) newMargin += 5;
+          else if (li.perfRatio >= 1.0) newMargin += 2;
+        } else if (marginGoal === "decrease") {
+          if (li.perfRatio >= 1.2) newMargin -= 2;
+          else if (li.perfRatio > 1.0) newMargin -= 5;
+        }
+      }
+      
+      newMargin = Math.max(5, Math.min(95, newMargin));
+      
+      // Ajustement du CPM Revenue (liberté totale)
       if (marginGoal === "increase") {
         if (li.perfRatio >= 1.2) {
           newCpmRevenue = li.cpmRevenue * 1.08;
@@ -331,26 +466,52 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           newCpmRevenue = li.cpmRevenue * 0.97;
         }
       }
-    }
+      
+      return { ...li, newMargin, newCpmRevenue };
+    });
     
-    if (!lockedLines.has(li.id)) {
-      if (isFin && li.perfRatio === 0) {
-        newSpend = (li.spend || 0) * 0.1;
+    // Réallocation des budgets (logique standard)
+    const itemsWithScore = optimizedItems.map(item => {
+      let allocationScore = 0;
+      
+      if (item.perfRatio === 0) {
+        allocationScore = 0;
       } else {
-        const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-        newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        if (marginGoal === "increase") {
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + item.newMargin / 100);
+        } else {
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + (100 - item.newMargin) / 100);
+        }
       }
-    }
+      
+      return { ...item, allocationScore };
+    });
     
-    return { 
-      id: li.id,
-      name: li.name,
-      spend: isNaN(newSpend) ? 0 : Number(newSpend.toFixed(2)),
-      cpmRevenue: Number(newCpmRevenue.toFixed(2)),
-      marginPct: Number(newMargin.toFixed(2)),
-      kpiActual: li.kpiActual
-    };
-  });
+    const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
+    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    
+    optimizedItems = itemsWithScore.map(li => {
+      let finalSpend = li.spend || 0;
+      
+      if (!lockedLines.has(li.id)) {
+        if (isFin && li.perfRatio === 0) {
+          finalSpend = (li.spend || 0) * 0.1;
+        } else {
+          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        }
+      }
+      
+      return { 
+        id: li.id,
+        name: li.name,
+        spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
+        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
+        marginPct: Number(li.newMargin.toFixed(2)),
+        kpiActual: li.kpiActual
+      };
+    });
+  }
   
   setProposedOptimizations(optimizedItems);
 };
@@ -1207,7 +1368,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     </button>
   </div>
   
-  {/* NOUVEAU : Contrainte CPM Cap */}
+  {/* Contrainte CPM Cap */}
   <div className="border-t border-blue-200 pt-4">
     <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
     <p className="text-xs text-blue-700 mb-3">Le CPM Vendu Cap est à <strong>{project.cpmSoldCap.toFixed(2)} {currSym}</strong></p>
@@ -1217,14 +1378,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", respectCpmCap ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50")}
       >
         🛡️ Respecter le CPM Vendu
-        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation via ajustement des Bids uniquement</div>
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation avec CPM moyen = Cap</div>
       </button>
       <button 
         onClick={() => setRespectCpmCap(false)}
         className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", !respectCpmCap ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50")}
       >
         🚀 Ne pas respecter le CPM Vendu
-        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (CPM Revenu + Bids)</div>
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (sans contrainte)</div>
       </button>
     </div>
   </div>
@@ -1240,7 +1401,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </button>
                   </div>
 
-                  {proposedOptimizations && (
+{proposedOptimizations && (
                     <>
                       <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
                         <table className="w-full text-sm text-left">
@@ -1258,6 +1419,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               const original = project.lineItems.find(o => o.id === li.id);
                               const spendDiff = original ? (li.spend || 0) - (original.spend || 0) : 0;
                               const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                              const cpmRevDiff = original ? li.cpmRevenue - original.cpmRevenue : 0;
                               
                               return (
                                 <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
@@ -1274,7 +1436,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-6 py-4 text-gray-600">{li.cpmRevenue}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.cpmRevenue.toFixed(2)}</span>
+                                      {cpmRevDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium", cpmRevDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({cpmRevDiff > 0 ? "+" : ""}{cpmRevDiff.toFixed(2)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
                                       <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
@@ -1306,12 +1477,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 {(() => {
                                     const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
                                     const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
+                                    const oldWeightedCpmRev = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / oldTotalSpend : 0;
                                     
                                     const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
                                     const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
                                     const newWeightedCpmRev = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / newTotalSpend : 0;
                                     
                                     const marginDiff = newWeightedMargin - oldWeightedMargin;
+                                    const cpmRevDiff = newWeightedCpmRev - oldWeightedCpmRev;
+                                    const capDiff = newWeightedCpmRev - project.cpmSoldCap;
                                     
                                     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                                     const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
@@ -1330,7 +1504,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                                     </div>
                                                 </div>
                                                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                                    <div className="text-xs text-gray-500 mb-1">Total Trend</div>
+                                                    <div className="text-xs text-gray-500 mb-1">Total Dépense</div>
                                                     <div className="text-xl font-black text-gray-900">
                                                         {newTotalSpend.toFixed(2)} {currSym}
                                                     </div>
@@ -1338,10 +1512,20 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-                                                    <div className="text-xs font-bold text-indigo-800 mb-1">CPM Revenu (Moy.)</div>
+                                                <div className={cn("p-3 rounded-lg border", 
+                                                  respectCpmCap && Math.abs(capDiff) <= 0.1 ? "bg-emerald-50 border-emerald-200" : "bg-indigo-50 border-indigo-100"
+                                                )}>
+                                                    <div className="text-xs font-bold text-indigo-800 mb-1 flex items-center justify-between">
+                                                      <span>CPM Revenu Moyen</span>
+                                                      {respectCpmCap && Math.abs(capDiff) <= 0.1 && <span className="text-emerald-600">✓</span>}
+                                                    </div>
                                                     <div className="text-lg font-black text-indigo-600">
                                                         {newWeightedCpmRev.toFixed(2)} {currSym}
+                                                    </div>
+                                                    <div className="text-xs text-indigo-500 mt-1">
+                                                      {respectCpmCap && (
+                                                        <>Cap: {project.cpmSoldCap.toFixed(2)} {currSym} (écart: {capDiff > 0 ? "+" : ""}{capDiff.toFixed(2)})</>
+                                                      )}
                                                     </div>
                                                 </div>
                                                 <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
@@ -1362,9 +1546,22 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             </div>
                             <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
                                 <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
-                                {marginGoal === "increase" 
-                                    ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
-                                    : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
+                                {respectCpmCap ? (
+                                  <div>
+                                    <p className="mb-2">
+                                      🛡️ <strong>Mode Respecter le Cap</strong> : L'algorithme répartit intelligemment les budgets pour atteindre le CPM Vendu Cap en moyenne pondérée.
+                                    </p>
+                                    <p>
+                                      Les lignes performantes reçoivent plus de budget et peuvent monter jusqu'au Cap, tandis que les lignes moins performantes compensent avec des CPM Revenue plus bas.
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p>
+                                    🚀 <strong>Mode Liberté totale</strong> : {marginGoal === "increase" 
+                                      ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
+                                      : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
+                                  </p>
+                                )}
                             </div>
                         </div>
                       </div>
