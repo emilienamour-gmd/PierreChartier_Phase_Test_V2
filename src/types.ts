@@ -7,11 +7,13 @@ export interface LineItem {
   kpiActual: number;
 }
 
-// --- AJOUT DE L'INTERFACE PROJECTNOTE ---
+// --- CORRECTION ICI ---
+// On remplace 'text' par 'content' et 'date' par 'timestamp'
+// pour correspondre à ton code dans CockpitYield.tsx
 export interface ProjectNote {
   id: string;
-  text: string;
-  date: string;
+  content: string; 
+  timestamp: string; // Si tu utilises Date.now(), change "string" par "number" ici
 }
 
 export interface ProjectSnapshot {
@@ -54,7 +56,7 @@ export interface ProjectData {
   lastModified: number;
   uplift?: number;
   marginPeriods?: MarginPeriod[];
-  // --- AJOUT DU CHAMP NOTES ---
+  // Le champ notes utilise maintenant la bonne interface
   notes?: ProjectNote[];
 }
 
@@ -80,6 +82,5 @@ export const DEFAULT_PROJECT: ProjectData = {
   lastModified: 0,
   uplift: 3.0,
   marginPeriods: [],
-  // --- INITIALISATION DU CHAMP NOTES ---
   notes: [],
 };
