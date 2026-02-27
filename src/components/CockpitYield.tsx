@@ -999,408 +999,416 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           </div>
 
           {/* Tabs */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex border-b border-gray-100 px-2 pt-2">
-              {[
-                { id: "analyse", label: "💰 Analyse" },
-                { id: "comparateur", label: "🧮 Marge" },
-                { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
-                { id: "suivi", label: "📊 Suivi Quotidien" },
-                { id: "historique", label: "📜 Historique" },
-                { id: "notes", label: "📝 Notes" }
-              ].map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={cn(
-                    "px-6 py-4 text-sm font-medium transition-colors border-b-2 rounded-t-lg",
-                    activeTab === t.id ? "border-blue-500 text-blue-600 bg-blue-50/50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+<div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+  <div className="flex border-b border-gray-100 px-2 pt-2">
+    {[
+      { id: "analyse", label: "💰 Analyse" },
+      { id: "comparateur", label: "🧮 Marge" },
+      { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
+      { id: "suivi", label: "📊 Suivi Quotidien" },
+      { id: "historique", label: "📜 Historique" },
+      { id: "notes", label: "📝 Notes" }
+    ].map(t => (
+      <button
+        key={t.id}
+        onClick={() => setActiveTab(t.id as any)}
+        className={cn(
+          "px-6 py-4 text-sm font-medium transition-colors border-b-2 rounded-t-lg",
+          activeTab === t.id ? "border-blue-500 text-blue-600 bg-blue-50/50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+        )}
+      >
+        {t.label}
+      </button>
+    ))}
+  </div>
 
-            <div className="p-8">
-              {activeTab === "analyse" && (
-                <div className="space-y-4">
-                  {isFin && project.actualKpi <= project.targetKpi ? (
-                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
-                      <div className="bg-white p-2 rounded-full shadow-sm">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+  <div className="p-8">
+    {/* TAB: ANALYSE */}
+    {activeTab === "analyse" && (
+      <div className="space-y-4">
+        {isFin && project.actualKpi <= project.targetKpi ? (
+          <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
+            <div className="bg-white p-2 rounded-full shadow-sm">
+              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+            </div>
+            <div>
+              <h4 className="font-bold text-lg">CONFORT</h4>
+              <p className="text-emerald-700 mt-1">Marge de manœuvre disponible. Le KPI est atteint, vous pouvez optimiser la marge.</p>
+            </div>
+          </div>
+        ) : !isFin && project.actualKpi >= project.targetKpi ? (
+          <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
+            <div className="bg-white p-2 rounded-full shadow-sm">
+              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+            </div>
+            <div>
+              <h4 className="font-bold text-lg">CONFORT</h4>
+              <p className="text-emerald-700 mt-1">Qualité au top. Le KPI est atteint.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-4 text-red-900">
+            <div className="bg-white p-2 rounded-full shadow-sm">
+              <AlertTriangle className="w-6 h-6 text-red-500" />
+            </div>
+            <div>
+              <h4 className="font-bold text-lg">TENSION</h4>
+              <p className="text-red-700 mt-1">Optimisez la performance avant la marge. Le KPI n'est pas atteint.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* TAB: COMPARATEUR / MARGE */}
+    {activeTab === "comparateur" && (
+      <div className="space-y-8">
+        <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+          
+          {/* SLIDER CONTROL */}
+          <div className="flex justify-between items-center mb-4">
+            <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Marge</label>
+            <span className={cn("font-bold px-3 py-1 rounded-full text-sm", uplift >= 0 ? "text-blue-600 bg-blue-100" : "text-red-600 bg-red-100")}>
+              {uplift > 0 ? "+" : ""}{uplift.toFixed(1)} Pts
+            </span>
+          </div>
+          <input 
+            type="range" min="-20" max="20" step="0.2"
+            className={cn("w-full", uplift >= 0 ? "accent-blue-600" : "accent-red-600")}
+            value={uplift}
+            onChange={(e) => updateUplift(Number(e.target.value))}
+          />
+
+          {/* CALCULATION SUMMARY BOX */}
+          {(() => {
+            const newMargin = currentMarginPctCalc + uplift;
+            const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
+            const budgetRestant = project.budgetTotal - project.budgetSpent;
+            const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
+            
+            let costDSP = 0;
+            let totalCostDSP = 0;
+
+            if (project.inputMode === "CPM Cost") {
+              if (uplift >= 0) {
+                costDSP = budgetRestant * (1 - newMargin / 100);
+                totalCostDSP = costDejaDepense + costDSP;
+              } else {
+                const costRestant = budgetRestant * (1 - newMargin / 100);
+                costDSP = costDejaDepense + costRestant;
+                totalCostDSP = costDSP;
+              }
+            }
+
+            return (
+              <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                <div>
+                  <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Nouvelle Marge Globale</div>
+                  <div className="text-xl font-black text-gray-900">{newMargin.toFixed(2)} %</div>
+                </div>
+                <div className="text-gray-300 px-4">
+                  <ArrowRight className="w-6 h-6" />
+                </div>
+                <div className="text-right">
+                  {project.inputMode === "CPM Cost" ? (
+                    <>
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Cost dans le DSP</div>
+                      <div className="text-xl font-black text-blue-600">{costDSP.toFixed(2)} {currSym}</div>
+                      <div className="text-[10px] text-gray-400 mt-1">
+                        {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
                       </div>
-                      <div>
-                        <h4 className="font-bold text-lg">CONFORT</h4>
-                        <p className="text-emerald-700 mt-1">Marge de manœuvre disponible. Le KPI est atteint, vous pouvez optimiser la marge.</p>
-                      </div>
-                    </div>
-                  ) : !isFin && project.actualKpi >= project.targetKpi ? (
-                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
-                      <div className="bg-white p-2 rounded-full shadow-sm">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-lg">CONFORT</h4>
-                        <p className="text-emerald-700 mt-1">Qualité au top. Le KPI est atteint.</p>
-                      </div>
-                    </div>
+                      
+                      {uplift > 0 && (
+                          <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                            <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
+                            <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
+                              {totalCostDSP.toFixed(2)} {currSym}
+                            </div>
+                          </div>
+                      )}
+                    </>
                   ) : (
-                    <div className="p-5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-4 text-red-900">
-                      <div className="bg-white p-2 rounded-full shadow-sm">
-                        <AlertTriangle className="w-6 h-6 text-red-500" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-lg">TENSION</h4>
-                        <p className="text-red-700 mt-1">Optimisez la performance avant la marge. Le KPI n'est pas atteint.</p>
-                      </div>
-                    </div>
+                    <>
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Total Media Cost Plus</div>
+                      <div className="text-xl font-black text-blue-600">{tmcp.toFixed(2)} %</div>
+                    </>
                   )}
                 </div>
+              </div>
+            );
+          })()}
+                
+          {/* APPLY BUTTON */}
+          <div className="flex justify-end mt-6">
+            <button 
+              onClick={applyMarginChange}
+              disabled={uplift === 0}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm",
+                uplift === 0 
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                  : uplift > 0 
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "bg-amber-600 text-white hover:bg-amber-700"
               )}
+            >
+              {uplift > 0 ? (
+                <>
+                  <TrendingUp className="w-4 h-4" />
+                  📈 Appliquer Hausse
+                </>
+              ) : uplift < 0 ? (
+                <>
+                  <TrendingDown className="w-4 h-4" />
+                  📉 Appliquer Baisse
+                </>
+              ) : (
+                <>
+                  <Minus className="w-4 h-4" />
+                  Aucun changement
+                </>
+              )}
+            </button>
+          </div>
 
-              {activeTab === "comparateur" && (
-                <div className="space-y-8">
-                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
-                    <div className="flex justify-between items-center mb-4">
-                      <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Marge</label>
-                      <span className={cn("font-bold px-3 py-1 rounded-full text-sm", uplift >= 0 ? "text-blue-600 bg-blue-100" : "text-red-600 bg-red-100")}>
-                        {uplift > 0 ? "+" : ""}{uplift.toFixed(1)} Pts
-                      </span>
+          {/* OPTIONS GRID */}
+          <div className="grid grid-cols-2 gap-6 mt-8">
+            
+            {/* OPTION 1: CPM REVENUE ADJUSTMENT */}
+            <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+              <h4 className="text-blue-900 font-bold text-base mb-2">
+                {uplift >= 0 ? "🔵 OPTION 1 : AUGMENTER CPM REVENU" : "🔵 OPTION 1 : BAISSER CPM REVENU"}
+              </h4>
+              <p className="text-gray-500 text-sm mb-6">
+                {uplift >= 0 ? "Garder le Bid (Qualité stable), augmenter le CPM Revenu." : "Garder le Bid (Qualité stable), baisser le CPM Revenu."}
+              </p>
+              
+              {(() => {
+                const newMarg = currentMarginPctCalc + uplift;
+                const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
+                const exceeds = newRevOpt1 > project.cpmSoldCap;
+                const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
+                
+                let kpiOpt1 = 0, kpiPess1 = 0;
+                if (isFin && perfRate > 0) {
+                  kpiOpt1 = project.kpiType !== "CPM" ? newRevOpt1 / (perfRate * 1000) : newRevOpt1;
+                  kpiPess1 = project.kpiType !== "CPM" ? newRevOpt1 / ((perfRate * 0.95) * 1000) : newRevOpt1;
+                } else if (!isFin) {
+                  kpiOpt1 = project.actualKpi;
+                  kpiPess1 = project.actualKpi * 0.95;
+                }
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau CPM</div>
+                      <div className="text-2xl font-black text-gray-900">{newRevOpt1.toFixed(2)} {currSym}</div>
+                      {exceeds && <div className="text-xs text-red-500 font-bold mt-2 bg-red-50 p-2 rounded-md">⛔ Plafond ({project.cpmSoldCap}) dépassé</div>}
                     </div>
-                    <input 
-                      type="range" min="-20" max="20" step="0.2"
-                      className={cn("w-full", uplift >= 0 ? "accent-blue-600" : "accent-red-600")}
-                      value={uplift}
-                      onChange={(e) => updateUplift(Number(e.target.value))}
-                    />
+                    
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                        IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">🌤️ Optimiste</span>
+                        <span className="text-sm font-bold text-emerald-600">
+                          {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
+                        <span className="text-sm font-bold text-red-600">
+                          {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                        </span>
+                      </div>
+                    </div>
 
-                    {(() => {
-                      const newMargin = currentMarginPctCalc + uplift;
-                      const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
+                    <details className="group bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
+                      <summary className="cursor-pointer p-3 text-sm font-bold text-blue-900 flex items-center justify-between list-none">
+                        <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Pourquoi ?</span>
+                        <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                      </summary>
+                      <div className="p-3 pt-0 text-xs text-blue-800 leading-relaxed border-t border-blue-100/50 mt-1">
+                        <strong>Mécanique :</strong> {uplift >= 0 ? "En augmentant le CPM facturé sans toucher au bid (CPM Cost), le win-rate et l'accès aux inventaires restent identiques. La qualité (CTR, CVR) ne bouge pas." : "En baissant le CPM facturé, vous réduisez votre marge mais le setup d'achat reste le même."}<br/><br/>
+                        <strong>Impact {project.kpiType} :</strong> L'impact est purement mathématique. La variation (optimiste/pessimiste) reflète uniquement la volatilité naturelle de l'algorithme de pacing du DSP (±5%).
+                      </div>
+                    </details>
+                  </div>
+                );
+              })()}
+            </div>
 
-                      const budgetRestant = project.budgetTotal - project.budgetSpent;
-                      
-                      const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
-                      
-                      let costDSP = 0;
-                      let totalCostDSP = 0;
-
-                      if (project.inputMode === "CPM Cost") {
-                        if (uplift >= 0) {
-                          costDSP = budgetRestant * (1 - newMargin / 100);
-                          totalCostDSP = costDejaDepense + costDSP;
-                        } else {
-                          const costRestant = budgetRestant * (1 - newMargin / 100);
-                          costDSP = costDejaDepense + costRestant;
-                          totalCostDSP = costDSP;
-                        }
+            {/* OPTION 2: BID ADJUSTMENT */}
+            <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+              <h4 className="text-amber-900 font-bold text-base mb-2">
+                {uplift >= 0 ? "🟠 OPTION 2 : BAISSE DU BID" : "🟠 OPTION 2 : HAUSSE DU BID"}
+              </h4>
+              <p className="text-gray-500 text-sm mb-6">
+                {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
+              </p>
+              
+              {(() => {
+                const newMarg = currentMarginPctCalc + uplift;
+                const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
+                const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
+                
+                let dropOpt = 1;
+                let dropPess = 1;
+                let expertExplanation = "";
+                
+                const isStrictClick = attrView === 0;
+                const isLongView = attrView >= 2;
+                const isMidView = attrView >= 1 && attrView < 2;
+                
+                switch(project.kpiType) {
+                  case "CPA":
+                  case "CPL":
+                    if (priceDrop >= 0) {
+                      if (isLongView) {
+                        dropOpt = 0.85;
+                        dropPess = 1.05;
+                        expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique.`;
+                      } else if (isMidView) {
+                        dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
+                        dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
+                        expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus.`;
+                      } else {
+                        dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5));
+                        dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
+                        expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus.`;
                       }
+                    } else {
+                      if (isStrictClick) {
+                        dropOpt = 1 - (priceDrop * 1.8);
+                        dropPess = 1 - (priceDrop * 0.9);
+                        expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable.";
+                      } else {
+                        dropOpt = 1 - (priceDrop * 1.3);
+                        dropPess = 1 - (priceDrop * 0.7);
+                        expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding.";
+                      }
+                    }
+                    break;
 
-                      return (
-                        <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
-                          <div>
-                            <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Nouvelle Marge Globale</div>
-                            <div className="text-xl font-black text-gray-900">{newMargin.toFixed(2)} %</div>
-                          </div>
-                          <div className="text-gray-300 px-4">
-                            <ArrowRight className="w-6 h-6" />
-                          </div>
-                          <div className="text-right">
-                            {project.inputMode === "CPM Cost" ? (
-                              <>
-                                <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Cost dans le DSP</div>
-                                <div className="text-xl font-black text-blue-600">{costDSP.toFixed(2)} {currSym}</div>
-                                <div className="text-[10px] text-gray-400 mt-1">
-                                  {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
-                                </div>
-                                
-                                {uplift > 0 && (
-                                   <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
-                                     <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
-                                     <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
-                                       {totalCostDSP.toFixed(2)} {currSym}
-                                     </div>
-                                   </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Total Media Cost Plus</div>
-                                <div className="text-xl font-black text-blue-600">{tmcp.toFixed(2)} %</div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                         
-                    <div className="flex justify-end mt-6">
-                      <button 
-                        onClick={applyMarginChange}
-                        disabled={uplift === 0}
-                        className={cn(
-                          "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm",
-                          uplift === 0 
-                            ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
-                            : uplift > 0 
-                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                              : "bg-amber-600 text-white hover:bg-amber-700"
-                        )}
-                      >
-                        {uplift > 0 ? (
-                          <>
-                            <TrendingUp className="w-4 h-4" />
-                            📈 Appliquer Hausse
-                          </>
-                        ) : uplift < 0 ? (
-                          <>
-                            <TrendingDown className="w-4 h-4" />
-                            📉 Appliquer Baisse
-                          </>
-                        ) : (
-                          <>
-                            <Minus className="w-4 h-4" />
-                            Aucun changement
-                          </>
-                        )}
-                      </button>
+                  case "CPV":
+                    if (priceDrop >= 0) {
+                      if (attrClick > 7) {
+                        dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
+                        dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                        expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité.`;
+                      } else {
+                        dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8));
+                        dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
+                        expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge.`;
+                      }
+                    } else {
+                      dropOpt = 1 - (priceDrop * 1.4);
+                      dropPess = 1 - (priceDrop * 0.8);
+                      expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible.";
+                    }
+                    break;
+
+                  case "CPCV":
+                    if (priceDrop >= 0) {
+                      dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
+                      dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                      expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés.";
+                    } else {
+                      dropOpt = 1 - (priceDrop * 1.2);
+                      dropPess = 1 - (priceDrop * 0.5);
+                      expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices.";
+                    }
+                    break;
+
+                  case "CTR":
+                  case "CPC":
+                    if (priceDrop >= 0) {
+                      dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
+                      dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
+                      expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position.";
+                    } else {
+                      dropOpt = 1 - (priceDrop * 1.4);
+                      dropPess = 1 - (priceDrop * 0.7);
+                      expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions.";
+                    }
+                    break;
+
+                  default:
+                    if (priceDrop >= 0) {
+                      dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
+                      dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
+                      expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose aux sites MFA.";
+                    } else {
+                      dropOpt = 1 - (priceDrop * 0.6);
+                      dropPess = 1 - (priceDrop * 0.3);
+                      expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists Premium.";
+                    }
+                    break;
+                }
+                
+                const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
+                let kpiOpt2 = 0, kpiPess2 = 0;
+
+                if (isFin) {
+                  if (project.kpiType === "CPM") {
+                    kpiOpt2 = project.cpmRevenueActual;
+                    kpiPess2 = project.cpmRevenueActual;
+                  } else if (perfRate > 0) {
+                    kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
+                    kpiPess2 = project.cpmRevenueActual / ((perfRate * dropPess) * 1000);
+                  }
+                } else {
+                  kpiOpt2 = project.actualKpi * dropOpt;
+                  kpiPess2 = project.actualKpi * dropPess;
+                }
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau Bid CPM Cost</div>
+                      <div className="text-2xl font-black text-gray-900">{newCostOpt2.toFixed(2)} {currSym}</div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-6 mt-8">
-
-                    {/* Options 1 & 2 */}
-                    <div className="grid grid-cols-2 gap-6 mt-8">
-                      {/* Option 1 */}
-                      <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                        <h4 className="text-blue-900 font-bold text-base mb-2">
-                          {uplift >= 0 ? "🔵 OPTION 1 : AUGMENTER CPM REVENU" : "🔵 OPTION 1 : BAISSER CPM REVENU"}
-                        </h4>
-                        <p className="text-gray-500 text-sm mb-6">
-                          {uplift >= 0 ? "Garder le Bid (Qualité stable), augmenter le CPM Revenu." : "Garder le Bid (Qualité stable), baisser le CPM Revenu."}
-                        </p>
-                        
-                        {(() => {
-                          const newMarg = currentMarginPctCalc + uplift;
-                          const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
-                          const exceeds = newRevOpt1 > project.cpmSoldCap;
-                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
-                          
-                          let kpiOpt1 = 0, kpiPess1 = 0;
-                          if (isFin && perfRate > 0) {
-                            kpiOpt1 = project.kpiType !== "CPM" ? newRevOpt1 / (perfRate * 1000) : newRevOpt1;
-                            kpiPess1 = project.kpiType !== "CPM" ? newRevOpt1 / ((perfRate * 0.95) * 1000) : newRevOpt1;
-                          } else if (!isFin) {
-                            kpiOpt1 = project.actualKpi;
-                            kpiPess1 = project.actualKpi * 0.95;
-                          }
-
-                          return (
-                            <div className="space-y-4">
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau CPM</div>
-                                <div className="text-2xl font-black text-gray-900">{newRevOpt1.toFixed(2)} {currSym}</div>
-                                {exceeds && <div className="text-xs text-red-500 font-bold mt-2 bg-red-50 p-2 rounded-md">⛔ Plafond ({project.cpmSoldCap}) dépassé</div>}
-                              </div>
-                              
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
-                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
-                                </div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                  <span className="text-sm font-bold text-emerald-600">
-                                    {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                  <span className="text-sm font-bold text-red-600">
-                                    {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <details className="group bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
-                                <summary className="cursor-pointer p-3 text-sm font-bold text-blue-900 flex items-center justify-between list-none">
-                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Pourquoi ?</span>
-                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                                </summary>
-                                <div className="p-3 pt-0 text-xs text-blue-800 leading-relaxed border-t border-blue-100/50 mt-1">
-                                  <strong>Mécanique :</strong> {uplift >= 0 ? "En augmentant le CPM facturé sans toucher au bid (CPM Cost), le win-rate et l'accès aux inventaires restent identiques. La qualité (CTR, CVR) ne bouge pas." : "En baissant le CPM facturé, vous réduisez votre marge mais le setup d'achat reste le même."}<br/><br/>
-                                  <strong>Impact {project.kpiType} :</strong> L'impact est purement mathématique. La variation (optimiste/pessimiste) reflète uniquement la volatilité naturelle de l'algorithme de pacing du DSP (±5%).
-                                </div>
-                              </details>
-                            </div>
-                          );
-                        })()}
+                    
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                        IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
                       </div>
-
-                      {/* Option 2 */}
-                      <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                        <h4 className="text-amber-900 font-bold text-base mb-2">
-                          {uplift >= 0 ? "🟠 OPTION 2 : BAISSE DU BID" : "🟠 OPTION 2 : HAUSSE DU BID"}
-                        </h4>
-                        <p className="text-gray-500 text-sm mb-6">
-                          {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
-                        </p>
-                        
-                        {(() => {
-                          const newMarg = currentMarginPctCalc + uplift;
-                          const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
-                          const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
-                          
-                          let dropOpt = 1;
-                          let dropPess = 1;
-                          let expertExplanation = "";
-                          
-                          const isStrictClick = attrView === 0;
-                          const isLongView = attrView >= 2;
-                          const isMidView = attrView >= 1 && attrView < 2;
-                          
-                          switch(project.kpiType) {
-                            case "CPA":
-                            case "CPL":
-                              if (priceDrop >= 0) {
-                                if (isLongView) {
-                                  dropOpt = 0.85;
-                                  dropPess = 1.05;
-                                  expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique.`;
-                                } else if (isMidView) {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
-                                  expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus.`;
-                                } else {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
-                                  expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus.`;
-                                }
-                              } else {
-                                if (isStrictClick) {
-                                  dropOpt = 1 - (priceDrop * 1.8);
-                                  dropPess = 1 - (priceDrop * 0.9);
-                                  expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable.";
-                                } else {
-                                  dropOpt = 1 - (priceDrop * 1.3);
-                                  dropPess = 1 - (priceDrop * 0.7);
-                                  expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding.";
-                                }
-                              }
-                              break;
-
-                            case "CPV":
-                              if (priceDrop >= 0) {
-                                if (attrClick > 7) {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                  expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité.`;
-                                } else {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
-                                  expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge.`;
-                                }
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.4);
-                                dropPess = 1 - (priceDrop * 0.8);
-                                expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible.";
-                              }
-                              break;
-
-                            case "CPCV":
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.2);
-                                dropPess = 1 - (priceDrop * 0.5);
-                                expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices.";
-                              }
-                              break;
-
-                            case "CTR":
-                            case "CPC":
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
-                                expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.4);
-                                dropPess = 1 - (priceDrop * 0.7);
-                                expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions.";
-                              }
-                              break;
-
-                            default:
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
-                                expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose aux sites MFA.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 0.6);
-                                dropPess = 1 - (priceDrop * 0.3);
-                                expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists Premium.";
-                              }
-                              break;
-                          }
-                          
-                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
-                          let kpiOpt2 = 0, kpiPess2 = 0;
-
-                          if (isFin) {
-                            if (project.kpiType === "CPM") {
-                              kpiOpt2 = project.cpmRevenueActual;
-                              kpiPess2 = project.cpmRevenueActual;
-                            } else if (perfRate > 0) {
-                              kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
-                              kpiPess2 = project.cpmRevenueActual / ((perfRate * dropPess) * 1000);
-                            }
-                          } else {
-                            kpiOpt2 = project.actualKpi * dropOpt;
-                            kpiPess2 = project.actualKpi * dropPess;
-                          }
-
-                          return (
-                            <div className="space-y-4">
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau Bid CPM Cost</div>
-                                <div className="text-2xl font-black text-gray-900">{newCostOpt2.toFixed(2)} {currSym}</div>
-                              </div>
-                              
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
-                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
-                                </div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                  <span className="text-sm font-bold text-emerald-600">
-                                    {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                  <span className="text-sm font-bold text-red-600">
-                                    {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
-                                <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
-                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert</span>
-                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                                </summary>
-                                <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
-                                  <strong>{project.kpiType} Impact :</strong> {expertExplanation}
-                                </div>
-                              </details>
-                            </div>
-                          );
-                        })()}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">🌤️ Optimiste</span>
+                        <span className="text-sm font-bold text-emerald-600">
+                          {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
+                        <span className="text-sm font-bold text-red-600">
+                          {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                        </span>
                       </div>
                     </div>
+
+                    <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
+                      <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
+                        <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert</span>
+                        <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                      </summary>
+                      <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
+                        <strong>{project.kpiType} Impact :</strong> {expertExplanation}
+                      </div>
+                    </details>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</div>
 
                     {/* Chart */}
                     <div className="mt-8 pt-8 border-t border-gray-100">
