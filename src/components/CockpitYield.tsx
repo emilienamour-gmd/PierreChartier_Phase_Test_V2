@@ -17,6 +17,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
+  const [respectCpmCap, setRespectCpmCap] = useState<boolean>(true);  // 👈 NOUVELLE LIGNE
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
@@ -235,97 +236,143 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     reader.readAsBinaryString(file);
   };
 
-  const handleOptimize = () => {
-    if (!marginGoal) {
-      alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
-      return;
-    }
+ const handleOptimize = () => {
+  if (!marginGoal) {
+    alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
+    return;
+  }
 
-    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+  const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+  
+  const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
+  const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
+  const availableSpend = Math.max(0, totalSpend - lockedSpend);
+  
+  // Calcul des ratios de performance
+  const scoredItems = project.lineItems.map(li => {
+    const actual = li.kpiActual || 0;
+    const target = project.targetKpi || 0.0001;
     
-    const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
-    const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
-    const availableSpend = Math.max(0, totalSpend - lockedSpend);
+    let perfRatio = 1;
     
-    const scoredItems = project.lineItems.map(li => {
-      const actual = li.kpiActual || 0;
-      const target = project.targetKpi || 0.0001;
+    if (isFin) {
+      if (actual === 0) {
+        perfRatio = 0; 
+      } else {
+        perfRatio = target / actual; 
+      }
+    } else {
+      perfRatio = actual / target;
+    }
+    
+    let allocationScore = 0;
+    
+    if (perfRatio === 0) {
+      allocationScore = 0; 
+    } else {
+      if (marginGoal === "increase") {
+        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
+      } else {
+        allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
+      }
+    }
+    
+    return { ...li, perfRatio, allocationScore };
+  });
+  
+  const unlockedItems = scoredItems.filter(li => !lockedLines.has(li.id));
+  const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+  
+  // 🎯 OPTIMISATION AVEC OU SANS CONTRAINTE CPM CAP
+  const optimizedItems = scoredItems.map(li => {
+    let newMargin = li.marginPct;
+    let newSpend = li.spend || 0;
+    let newCpmRevenue = li.cpmRevenue;
+    
+    // ==== AJUSTEMENT DE LA MARGE ====
+    if (isFin && li.perfRatio === 0) {
+      newMargin = li.marginPct;
+    } else if (li.perfRatio < 1.0) {
+      if (marginGoal === "increase") {
+        newMargin = li.marginPct;
+      } else {
+        newMargin = Math.max(5, li.marginPct - 5);
+      }
+    } else {
+      if (marginGoal === "increase") {
+        if (li.perfRatio >= 1.2) newMargin += 5;
+        else if (li.perfRatio >= 1.0) newMargin += 2;
+      } else if (marginGoal === "decrease") {
+        if (li.perfRatio >= 1.2) newMargin -= 2;
+        else if (li.perfRatio > 1.0) newMargin -= 5;
+      }
+    }
+    
+    // Limite de marge
+    newMargin = Math.max(5, Math.min(95, newMargin));
+    
+    // ==== APPLICATION DE LA CONTRAINTE CPM CAP ====
+    if (respectCpmCap) {
+      // 🛡️ MODE : RESPECTER LE CPM VENDU CAP
+      // On ne peut PAS dépasser project.cpmSoldCap
       
-      let perfRatio = 1;
-      
-      if (isFin) {
-        if (actual === 0) {
-            perfRatio = 0; 
+      if (li.cpmRevenue > project.cpmSoldCap) {
+        // Déjà au-dessus du cap : on ramène au cap
+        newCpmRevenue = project.cpmSoldCap;
+      } else {
+        // En dessous du cap : on peut monter jusqu'au cap
+        if (marginGoal === "increase") {
+          // Pour augmenter la marge, on DOIT baisser le Cost (on ne peut pas monter le Revenu au-delà du Cap)
+          // Le CPM Revenu reste inchangé (ou monte jusqu'au cap max)
+          const maxPossibleRevenue = Math.min(project.cpmSoldCap, li.cpmRevenue * 1.05);
+          newCpmRevenue = maxPossibleRevenue;
         } else {
-            perfRatio = target / actual; 
+          // Pour baisser la marge (boost KPI), on peut légèrement baisser le Revenu
+          newCpmRevenue = Math.max(li.cpmRevenue * 0.97, project.cpmSoldCap * 0.9);
+        }
+      }
+      
+    } else {
+      // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU CAP
+      // Liberté totale d'optimisation
+      
+      if (marginGoal === "increase") {
+        // Augmenter marge : on peut monter le CPM Revenu librement
+        if (li.perfRatio >= 1.2) {
+          newCpmRevenue = li.cpmRevenue * 1.08; // +8%
+        } else if (li.perfRatio >= 1.0) {
+          newCpmRevenue = li.cpmRevenue * 1.05; // +5%
         }
       } else {
-        perfRatio = actual / target;
+        // Baisser marge : on baisse légèrement le Revenu pour rester compétitif
+        if (li.perfRatio >= 1.0) {
+          newCpmRevenue = li.cpmRevenue * 0.97; // -3%
+        }
       }
-      
-      let allocationScore = 0;
-      
-      if (perfRatio === 0) {
-          allocationScore = 0; 
-      } else {
-          if (marginGoal === "increase") {
-            allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + li.marginPct / 100);
-          } else {
-            allocationScore = Math.pow(Math.max(0.1, perfRatio), 2) * (1 + (100 - li.marginPct) / 100);
-          }
-      }
-      
-      return { ...li, perfRatio, allocationScore };
-    });
+    }
     
-    const unlockedItems = scoredItems.filter(li => !lockedLines.has(li.id));
-    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
-    
-    const optimizedItems = scoredItems.map(li => {
-      let newMargin = li.marginPct;
-      let newSpend = li.spend || 0;
-      
+    // ==== RÉALLOCATION DU BUDGET ====
+    if (!lockedLines.has(li.id)) {
       if (isFin && li.perfRatio === 0) {
-          newMargin = li.marginPct; 
-          
-      } else if (li.perfRatio < 1.0) {
-          if (marginGoal === "increase") {
-              newMargin = li.marginPct;
-          } else {
-              newMargin = Math.max(5, li.marginPct - 5);
-          }
-          
+        newSpend = (li.spend || 0) * 0.1;
       } else {
-          if (marginGoal === "increase") {
-            if (li.perfRatio >= 1.2) newMargin += 5;
-            else if (li.perfRatio >= 1.0) newMargin += 2;
-          } else if (marginGoal === "decrease") {
-            if (li.perfRatio >= 1.2) newMargin -= 2;
-            else if (li.perfRatio > 1.0) newMargin -= 5;
-          }
+        const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+        newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
       }
-      
-      if (!lockedLines.has(li.id)) {
-        if (isFin && li.perfRatio === 0) {
-            newSpend = (li.spend || 0) * 0.1;
-        } else {
-            const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-            newSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
-        }
-      }
-      
-      return { 
-        id: li.id,
-        name: li.name,
-        spend: isNaN(newSpend) ? 0 : Number(newSpend.toFixed(2)),
-        cpmRevenue: li.cpmRevenue,
-        marginPct: Number(newMargin.toFixed(2)),
-        kpiActual: li.kpiActual
-      };
-    });
+    }
     
-    setProposedOptimizations(optimizedItems);
-  };
+    return { 
+      id: li.id,
+      name: li.name,
+      spend: isNaN(newSpend) ? 0 : Number(newSpend.toFixed(2)),
+      cpmRevenue: Number(newCpmRevenue.toFixed(2)),
+      marginPct: Number(newMargin.toFixed(2)),
+      kpiActual: li.kpiActual
+    };
+  });
+  
+  setProposedOptimizations(optimizedItems);
+};
 
   const applyOptimizations = () => {
     if (proposedOptimizations) {
@@ -1158,26 +1205,48 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-blue-900 mb-1">Objectif d'optimisation</h4>
-                      <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setMarginGoal("increase")}
-                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
-                      >
-                        📈 Augmenter la Marge
-                      </button>
-                      <button 
-                        onClick={() => setMarginGoal("decrease")}
-                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
-                      >
-                        📉 Baisser la Marge (Boost KPI)
-                      </button>
-                    </div>
-                  </div>
+                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl">
+  <div className="mb-4">
+    <h4 className="font-bold text-blue-900 mb-1">Objectif d'optimisation</h4>
+    <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
+  </div>
+  <div className="flex gap-2 mb-4">
+    <button 
+      onClick={() => setMarginGoal("increase")}
+      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
+    >
+      📈 Augmenter la Marge
+    </button>
+    <button 
+      onClick={() => setMarginGoal("decrease")}
+      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
+    >
+      📉 Baisser la Marge (Boost KPI)
+    </button>
+  </div>
+  
+  {/* NOUVEAU : Contrainte CPM Cap */}
+  <div className="border-t border-blue-200 pt-4">
+    <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
+    <p className="text-xs text-blue-700 mb-3">Le CPM Vendu Cap est à <strong>{project.cpmSoldCap.toFixed(2)} {currSym}</strong></p>
+    <div className="flex gap-2">
+      <button 
+        onClick={() => setRespectCpmCap(true)}
+        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", respectCpmCap ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50")}
+      >
+        🛡️ Respecter le CPM Vendu
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation via ajustement des Bids uniquement</div>
+      </button>
+      <button 
+        onClick={() => setRespectCpmCap(false)}
+        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", !respectCpmCap ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50")}
+      >
+        🚀 Ne pas respecter le CPM Vendu
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (CPM Revenu + Bids)</div>
+      </button>
+    </div>
+  </div>
+</div>
 
                   <div className="flex justify-end">
                     <button 
