@@ -494,7 +494,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </div>
           </div>
 
-          {/* 3. Achat */}
+         {/* 3. Achat */}
 <div className="space-y-4 pt-6 border-t border-gray-100">
   <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
   <div className="grid grid-cols-2 gap-3">
@@ -505,10 +505,25 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
         value={project.inputMode === "CPM Cost" ? project.cpmCostActuel : Number(cpmCostActuelCalc.toFixed(2))}
         onChange={(e) => {
-          onChange({
-            ...project,
-            cpmCostActuel: Number(e.target.value)
-          });
+          const newCpmCost = Number(e.target.value);
+          
+          if (project.inputMode === "CPM Cost") {
+            // Mode Cost : on met à jour le CPM Cost directement
+            onChange({
+              ...project,
+              cpmCostActuel: newCpmCost
+            });
+          } else {
+            // Mode Revenu : on calcule la marge correspondante
+            const newMarge = project.cpmRevenueActual > 0 
+              ? ((project.cpmRevenueActual - newCpmCost) / project.cpmRevenueActual) * 100
+              : 0;
+            onChange({
+              ...project,
+              inputMode: "Marge %",
+              margeInput: newMarge
+            });
+          }
         }}
       />
     </div>
@@ -519,10 +534,22 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
         value={project.inputMode === "Marge %" ? project.margeInput : Number(currentMarginPctCalc.toFixed(2))}
         onChange={(e) => {
-          onChange({
-            ...project,
-            margeInput: Number(e.target.value)
-          });
+          const newMarge = Number(e.target.value);
+          
+          if (project.inputMode === "Marge %") {
+            // Mode Revenu : on met à jour la marge directement
+            onChange({
+              ...project,
+              margeInput: newMarge
+            });
+          } else {
+            // Mode Cost : on recalcule le CPM Cost correspondant
+            const newCpmCost = project.cpmRevenueActual * (1 - newMarge / 100);
+            onChange({
+              ...project,
+              cpmCostActuel: newCpmCost
+            });
+          }
         }}
       />
     </div>
