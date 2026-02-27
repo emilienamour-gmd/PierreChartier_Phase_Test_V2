@@ -65,7 +65,7 @@ export default function App() {
     portfolio: "Portfolio & Performance",
     market: "Market Watch",
     settings: "Settings",
-    help: "Help Center", // Titre pour le header
+    help: "Help Center",
   };
 
   return (
@@ -125,7 +125,6 @@ export default function App() {
           {activeTab === "market" && <MarketWatch currentCost={activeProject.cpmCostActuel} />}
           {activeTab === "settings" && <Settings />}
           
-          {/* 👇 LA PAGE HELP CENTER 👇 */}
           {activeTab === "help" && (
             <div className="flex items-center justify-center h-full bg-white">
               <h1 className="text-3xl font-bold text-gray-900">
