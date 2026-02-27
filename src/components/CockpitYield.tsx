@@ -1,8 +1,8 @@
 import { useState, ChangeEvent, useEffect } from "react";
-import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote, DailyEntry } from "../types";
+import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote } from "../types";
 import { cn } from "../utils/cn";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History, Calendar, Check, X } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
@@ -11,7 +11,7 @@ interface CockpitYieldProps {
 }
 
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
-  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "suivi" | "historique" | "notes">("analyse");
+  const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique" | "notes">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
   const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -21,17 +21,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
   const [attrClick, setAttrClick] = useState(7);
   const [attrView, setAttrView] = useState(1);
-
-  // ✅ ÉTATS SUIVI QUOTIDIEN
-  const [dailyForm, setDailyForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    budgetSpentYesterday: 0,
-    cpmRevenueYesterday: project.cpmRevenueActual || 0,
-    marginPctYesterday: 0,
-    kpiYesterday: project.actualKpi || 0
-  });
-  const [showDailyPreview, setShowDailyPreview] = useState(false);
-  const [chartTimeRange, setChartTimeRange] = useState<"daily" | "weekly">("daily");
 
   useEffect(() => {
     setUplift(project.uplift ?? 3.0);
@@ -96,71 +85,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       action,
       note
     };
-  };
-
-  // ✅ FONCTION : Appliquer les données quotidiennes
-  const applyDailyEntry = () => {
-    if (!dailyForm.budgetSpentYesterday || dailyForm.budgetSpentYesterday <= 0) {
-      alert("⚠️ Veuillez saisir un budget dépensé valide.");
-      return;
-    }
-
-    const previousCumulative = project.budgetSpent;
-    const newCumulative = previousCumulative + dailyForm.budgetSpentYesterday;
-
-    if (newCumulative > project.budgetTotal) {
-      if (!confirm(`⚠️ Le budget cumulé (${newCumulative.toFixed(2)} ${currSym}) dépasse le budget total (${project.budgetTotal} ${currSym}). Continuer quand même ?`)) {
-        return;
-      }
-    }
-
-    const newDailyEntry: DailyEntry = {
-      id: Date.now().toString(),
-      date: dailyForm.date,
-      budgetSpentYesterday: dailyForm.budgetSpentYesterday,
-      cpmRevenueYesterday: dailyForm.cpmRevenueYesterday,
-      marginPctYesterday: dailyForm.marginPctYesterday,
-      kpiYesterday: dailyForm.kpiYesterday,
-      budgetSpentCumulative: newCumulative,
-      appliedAt: new Date().toISOString()
-    };
-
-    const snapshot: ProjectSnapshot = {
-      timestamp: new Date().toISOString(),
-      budgetSpent: newCumulative,
-      marginPct: dailyForm.marginPctYesterday,
-      cpmCostActuel: dailyForm.cpmRevenueYesterday * (1 - dailyForm.marginPctYesterday / 100),
-      cpmRevenueActual: dailyForm.cpmRevenueYesterday,
-      actualKpi: dailyForm.kpiYesterday,
-      gainRealized: newCumulative * (dailyForm.marginPctYesterday / 100),
-      action: "DAILY_UPDATE",
-      note: `📊 Mise à jour quotidienne du ${new Date(dailyForm.date).toLocaleDateString('fr-FR')} - Budget: ${dailyForm.budgetSpentYesterday.toFixed(2)} ${currSym}, Marge: ${dailyForm.marginPctYesterday.toFixed(2)}%, CPM Rev: ${dailyForm.cpmRevenueYesterday.toFixed(2)} ${currSym}`
-    };
-
-    const updatedDailyEntries = [...(project.dailyEntries || []), newDailyEntry];
-    const updatedHistory = [...(project.history || []), snapshot];
-
-    onChange({
-      ...project,
-      budgetSpent: newCumulative,
-      cpmRevenueActual: dailyForm.cpmRevenueYesterday,
-      actualKpi: dailyForm.kpiYesterday,
-      margeInput: dailyForm.marginPctYesterday,
-      dailyEntries: updatedDailyEntries,
-      history: updatedHistory,
-      updatedAt: new Date().toISOString()
-    });
-
-    setDailyForm({
-      date: new Date(new Date(dailyForm.date).getTime() + 86400000).toISOString().split('T')[0],
-      budgetSpentYesterday: 0,
-      cpmRevenueYesterday: dailyForm.cpmRevenueYesterday,
-      marginPctYesterday: dailyForm.marginPctYesterday,
-      kpiYesterday: dailyForm.kpiYesterday
-    });
-    setShowDailyPreview(false);
-
-    alert("✅ Données quotidiennes appliquées avec succès !");
   };
 
   const applyMarginChange = () => {
@@ -311,248 +235,286 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     };
     reader.readAsBinaryString(file);
   };
-const handleOptimize = () => {
-    if (!marginGoal) {
-      alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
-      return;
-    }
 
-    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+ const handleOptimize = () => {
+  if (!marginGoal) {
+    alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
+    return;
+  }
+
+  const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+  
+  const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
+  const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
+  const availableSpend = Math.max(0, totalSpend - lockedSpend);
+  
+  // ==== ÉTAPE 1 : CALCUL DES RATIOS DE PERFORMANCE ====
+  const scoredItems = project.lineItems.map(li => {
+    const actual = li.kpiActual || 0;
+    const target = project.targetKpi || 0.0001;
     
-    const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
-    const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
-    const availableSpend = Math.max(0, totalSpend - lockedSpend);
+    let perfRatio = 1;
     
-    const scoredItems = project.lineItems.map(li => {
-      const actual = li.kpiActual || 0;
-      const target = project.targetKpi || 0.0001;
+    if (isFin) {
+      if (actual === 0) {
+        perfRatio = 0; 
+      } else {
+        perfRatio = target / actual; 
+      }
+    } else {
+      perfRatio = actual / target;
+    }
+    
+    return { ...li, perfRatio };
+  });
+  
+  // ==== ÉTAPE 2 : OPTIMISATION SELON LE MODE ====
+  let optimizedItems: LineItem[] = [];
+  
+  if (respectCpmCap) {
+    // 🎯 MODE : RESPECTER LE CPM VENDU CAP (NOUVELLE LOGIQUE INTELLIGENTE)
+    
+    // Calcul du CPM Revenue moyen actuel
+    const currentWeightedCpmRev = totalSpend > 0 
+      ? scoredItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / totalSpend
+      : 0;
+    
+    // Objectif : atteindre le CPM Sold Cap en moyenne pondérée
+    const targetCpmRev = project.cpmSoldCap;
+    const cpmRevGap = targetCpmRev - currentWeightedCpmRev;
+    
+    console.log(`📊 CPM Revenue actuel moyen : ${currentWeightedCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`🎯 CPM Revenue cible (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`📈 Écart à combler : ${cpmRevGap.toFixed(2)} ${currSym}`);
+    
+    // ==== STRATÉGIE D'OPTIMISATION INTELLIGENTE ====
+    optimizedItems = scoredItems.map(li => {
+      let newMargin = li.marginPct;
+      let newSpend = li.spend || 0;
+      let newCpmRevenue = li.cpmRevenue;
       
-      let perfRatio = 1;
-      
-      if (isFin) {
-        if (actual === 0) {
-          perfRatio = 0; 
+      // --- 1. AJUSTEMENT DE LA MARGE ---
+      if (isFin && li.perfRatio === 0) {
+        newMargin = li.marginPct;
+      } else if (li.perfRatio < 1.0) {
+        if (marginGoal === "increase") {
+          newMargin = li.marginPct;
         } else {
-          perfRatio = target / actual; 
+          newMargin = Math.max(5, li.marginPct - 5);
         }
       } else {
-        perfRatio = actual / target;
+        if (marginGoal === "increase") {
+          if (li.perfRatio >= 1.2) newMargin += 5;
+          else if (li.perfRatio >= 1.0) newMargin += 2;
+        } else if (marginGoal === "decrease") {
+          if (li.perfRatio >= 1.2) newMargin -= 2;
+          else if (li.perfRatio > 1.0) newMargin -= 5;
+        }
       }
       
-      return { ...li, perfRatio };
+      newMargin = Math.max(5, Math.min(95, newMargin));
+      
+      // --- 2. AJUSTEMENT DU CPM REVENUE (LOGIQUE INTELLIGENTE) ---
+      // On attribue des CPM Revenue différents selon la performance
+      // pour atteindre le CPM Sold Cap en moyenne pondérée
+      
+      const cpmRevRatio = li.cpmRevenue / targetCpmRev; // Écart de la ligne par rapport au Cap
+      
+      if (marginGoal === "increase") {
+        // Augmenter la marge : on veut se rapprocher du Cap
+        if (li.perfRatio >= 1.2) {
+          // Ligne très performante : elle peut aller jusqu'au Cap
+          newCpmRevenue = Math.min(targetCpmRev * 1.0, li.cpmRevenue * 1.05);
+        } else if (li.perfRatio >= 1.0) {
+          // Ligne correcte : elle monte modérément vers le Cap
+          newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 1.03);
+        } else if (li.perfRatio >= 0.8) {
+          // Ligne en difficulté : elle reste en dessous du Cap
+          newCpmRevenue = Math.min(targetCpmRev * 0.85, li.cpmRevenue * 1.01);
+        } else {
+          // Ligne sous-performante : elle baisse pour compenser
+          newCpmRevenue = li.cpmRevenue * 0.97;
+        }
+      } else {
+        // Baisser la marge : on baisse légèrement pour rester compétitif
+        if (li.perfRatio >= 1.0) {
+          newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 0.98);
+        } else {
+          newCpmRevenue = li.cpmRevenue * 0.95;
+        }
+      }
+      
+      // Contrainte absolue : jamais au-dessus du Cap
+      newCpmRevenue = Math.min(targetCpmRev, newCpmRevenue);
+      
+      return { ...li, newMargin, newCpmRevenue, perfRatio: li.perfRatio };
     });
     
-    let optimizedItems: LineItem[] = [];
+    // --- 3. RÉALLOCATION DES BUDGETS POUR OPTIMISER LA MOYENNE PONDÉRÉE ---
+    // On calcule un score composite qui prend en compte :
+    // - La performance (perfRatio)
+    // - L'écart du CPM Revenue au Cap (pour équilibrer)
     
-    if (respectCpmCap) {
-      const currentWeightedCpmRev = totalSpend > 0 
-        ? scoredItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / totalSpend
-        : 0;
+    const itemsWithScore = optimizedItems.map(item => {
+      // Score de performance
+      let perfScore = Math.pow(Math.max(0.1, item.perfRatio), 2);
       
-      const targetCpmRev = project.cpmSoldCap;
-      const cpmRevGap = targetCpmRev - currentWeightedCpmRev;
+      // Bonus si la ligne aide à atteindre le Cap moyen
+      const cpmRevRatio = item.newCpmRevenue / targetCpmRev;
+      let capAlignmentBonus = 1;
       
-      console.log(`📊 CPM Revenue actuel moyen : ${currentWeightedCpmRev.toFixed(2)} ${currSym}`);
-      console.log(`🎯 CPM Revenue cible (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
-      console.log(`📈 Écart à combler : ${cpmRevGap.toFixed(2)} ${currSym}`);
+      if (currentWeightedCpmRev < targetCpmRev) {
+        // On est en dessous du Cap : on privilégie les lignes avec un CPM Revenue élevé
+        capAlignmentBonus = 1 + (cpmRevRatio - 1) * 0.5;
+      } else {
+        // On est au-dessus du Cap : on privilégie les lignes avec un CPM Revenue bas
+        capAlignmentBonus = 1 + (1 - cpmRevRatio) * 0.5;
+      }
       
-      optimizedItems = scoredItems.map(li => {
-        let newMargin = li.marginPct;
-        let newSpend = li.spend || 0;
-        let newCpmRevenue = li.cpmRevenue;
-        
-        if (isFin && li.perfRatio === 0) {
-          newMargin = li.marginPct;
-        } else if (li.perfRatio < 1.0) {
-          if (marginGoal === "increase") {
-            newMargin = li.marginPct;
-          } else {
-            newMargin = Math.max(5, li.marginPct - 5);
-          }
-        } else {
-          if (marginGoal === "increase") {
-            if (li.perfRatio >= 1.2) newMargin += 5;
-            else if (li.perfRatio >= 1.0) newMargin += 2;
-          } else if (marginGoal === "decrease") {
-            if (li.perfRatio >= 1.2) newMargin -= 2;
-            else if (li.perfRatio > 1.0) newMargin -= 5;
-          }
-        }
-        
-        newMargin = Math.max(5, Math.min(95, newMargin));
-        
-        const cpmRevRatio = li.cpmRevenue / targetCpmRev;
-        
+      capAlignmentBonus = Math.max(0.5, Math.min(1.5, capAlignmentBonus));
+      
+      // Score final
+      let allocationScore = 0;
+      if (item.perfRatio === 0) {
+        allocationScore = 0;
+      } else {
         if (marginGoal === "increase") {
-          if (li.perfRatio >= 1.2) {
-            newCpmRevenue = Math.min(targetCpmRev * 1.0, li.cpmRevenue * 1.05);
-          } else if (li.perfRatio >= 1.0) {
-            newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 1.03);
-          } else if (li.perfRatio >= 0.8) {
-            newCpmRevenue = Math.min(targetCpmRev * 0.85, li.cpmRevenue * 1.01);
-          } else {
-            newCpmRevenue = li.cpmRevenue * 0.97;
-          }
+          allocationScore = perfScore * capAlignmentBonus * (1 + item.newMargin / 100);
         } else {
-          if (li.perfRatio >= 1.0) {
-            newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 0.98);
-          } else {
-            newCpmRevenue = li.cpmRevenue * 0.95;
-          }
+          allocationScore = perfScore * capAlignmentBonus * (1 + (100 - item.newMargin) / 100);
         }
-        
-        newCpmRevenue = Math.min(targetCpmRev, newCpmRevenue);
-        
-        return { ...li, newMargin, newCpmRevenue, perfRatio: li.perfRatio };
-      });
+      }
       
-      const itemsWithScore = optimizedItems.map(item => {
-        let perfScore = Math.pow(Math.max(0.1, item.perfRatio), 2);
-        
-        const cpmRevRatio = item.newCpmRevenue / targetCpmRev;
-        let capAlignmentBonus = 1;
-        
-        if (currentWeightedCpmRev < targetCpmRev) {
-          capAlignmentBonus = 1 + (cpmRevRatio - 1) * 0.5;
-        } else {
-          capAlignmentBonus = 1 + (1 - cpmRevRatio) * 0.5;
-        }
-        
-        capAlignmentBonus = Math.max(0.5, Math.min(1.5, capAlignmentBonus));
-        
-        let allocationScore = 0;
-        if (item.perfRatio === 0) {
-          allocationScore = 0;
-        } else {
-          if (marginGoal === "increase") {
-            allocationScore = perfScore * capAlignmentBonus * (1 + item.newMargin / 100);
-          } else {
-            allocationScore = perfScore * capAlignmentBonus * (1 + (100 - item.newMargin) / 100);
-          }
-        }
-        
-        return { ...item, allocationScore, capAlignmentBonus };
-      });
-      
-      const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
-      const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
-      
-      optimizedItems = itemsWithScore.map(li => {
-        let finalSpend = li.spend || 0;
-        
-        if (!lockedLines.has(li.id)) {
-          if (isFin && li.perfRatio === 0) {
-            finalSpend = (li.spend || 0) * 0.1;
-          } else {
-            const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-            finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
-          }
-        }
-        
-        return { 
-          id: li.id,
-          name: li.name,
-          spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
-          cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
-          marginPct: Number(li.newMargin.toFixed(2)),
-          kpiActual: li.kpiActual
-        };
-      });
-      
-      const finalTotalSpend = optimizedItems.reduce((acc, li) => acc + li.spend, 0);
-      const finalWeightedCpmRev = finalTotalSpend > 0 
-        ? optimizedItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
-        : 0;
-      
-      console.log(`✅ CPM Revenue moyen après optimisation : ${finalWeightedCpmRev.toFixed(2)} ${currSym}`);
-      console.log(`🎯 Objectif (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
-      console.log(`📊 Écart final : ${Math.abs(finalWeightedCpmRev - targetCpmRev).toFixed(2)} ${currSym}`);
-      
-    } else {
-      optimizedItems = scoredItems.map(li => {
-        let newMargin = li.marginPct;
-        let newSpend = li.spend || 0;
-        let newCpmRevenue = li.cpmRevenue;
-        
-        if (isFin && li.perfRatio === 0) {
-          newMargin = li.marginPct;
-        } else if (li.perfRatio < 1.0) {
-          if (marginGoal === "increase") {
-            newMargin = li.marginPct;
-          } else {
-            newMargin = Math.max(5, li.marginPct - 5);
-          }
-        } else {
-          if (marginGoal === "increase") {
-            if (li.perfRatio >= 1.2) newMargin += 5;
-            else if (li.perfRatio >= 1.0) newMargin += 2;
-          } else if (marginGoal === "decrease") {
-            if (li.perfRatio >= 1.2) newMargin -= 2;
-            else if (li.perfRatio > 1.0) newMargin -= 5;
-          }
-        }
-        
-        newMargin = Math.max(5, Math.min(95, newMargin));
-        
-        if (marginGoal === "increase") {
-          if (li.perfRatio >= 1.2) {
-            newCpmRevenue = li.cpmRevenue * 1.08;
-          } else if (li.perfRatio >= 1.0) {
-            newCpmRevenue = li.cpmRevenue * 1.05;
-          }
-        } else {
-          if (li.perfRatio >= 1.0) {
-            newCpmRevenue = li.cpmRevenue * 0.97;
-          }
-        }
-        
-        return { ...li, newMargin, newCpmRevenue };
-      });
-      
-      const itemsWithScore = optimizedItems.map(item => {
-        let allocationScore = 0;
-        
-        if (item.perfRatio === 0) {
-          allocationScore = 0;
-        } else {
-          if (marginGoal === "increase") {
-            allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + item.newMargin / 100);
-          } else {
-            allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + (100 - item.newMargin) / 100);
-          }
-        }
-        
-        return { ...item, allocationScore };
-      });
-      
-      const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
-      const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
-      
-      optimizedItems = itemsWithScore.map(li => {
-        let finalSpend = li.spend || 0;
-        
-        if (!lockedLines.has(li.id)) {
-          if (isFin && li.perfRatio === 0) {
-            finalSpend = (li.spend || 0) * 0.1;
-          } else {
-            const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
-            finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
-          }
-        }
-        
-        return { 
-          id: li.id,
-          name: li.name,
-          spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
-          cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
-          marginPct: Number(li.newMargin.toFixed(2)),
-          kpiActual: li.kpiActual
-        };
-      });
-    }
+      return { ...item, allocationScore, capAlignmentBonus };
+    });
     
-    setProposedOptimizations(optimizedItems);
-  };
+    // Réallocation des budgets
+    const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
+    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    
+    optimizedItems = itemsWithScore.map(li => {
+      let finalSpend = li.spend || 0;
+      
+      if (!lockedLines.has(li.id)) {
+        if (isFin && li.perfRatio === 0) {
+          finalSpend = (li.spend || 0) * 0.1;
+        } else {
+          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          // Lissage 70/30 pour éviter les changements trop brutaux
+          finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        }
+      }
+      
+      return { 
+        id: li.id,
+        name: li.name,
+        spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
+        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
+        marginPct: Number(li.newMargin.toFixed(2)),
+        kpiActual: li.kpiActual
+      };
+    });
+    
+    // Vérification finale : calcul du CPM Revenue moyen après optimisation
+    const finalTotalSpend = optimizedItems.reduce((acc, li) => acc + li.spend, 0);
+    const finalWeightedCpmRev = finalTotalSpend > 0 
+      ? optimizedItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
+      : 0;
+    
+    console.log(`✅ CPM Revenue moyen après optimisation : ${finalWeightedCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`🎯 Objectif (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
+    console.log(`📊 Écart final : ${Math.abs(finalWeightedCpmRev - targetCpmRev).toFixed(2)} ${currSym}`);
+    
+  } else {
+    // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU (OPTIMISATION LIBRE)
+    
+    optimizedItems = scoredItems.map(li => {
+      let newMargin = li.marginPct;
+      let newSpend = li.spend || 0;
+      let newCpmRevenue = li.cpmRevenue;
+      
+      // Ajustement de la marge
+      if (isFin && li.perfRatio === 0) {
+        newMargin = li.marginPct;
+      } else if (li.perfRatio < 1.0) {
+        if (marginGoal === "increase") {
+          newMargin = li.marginPct;
+        } else {
+          newMargin = Math.max(5, li.marginPct - 5);
+        }
+      } else {
+        if (marginGoal === "increase") {
+          if (li.perfRatio >= 1.2) newMargin += 5;
+          else if (li.perfRatio >= 1.0) newMargin += 2;
+        } else if (marginGoal === "decrease") {
+          if (li.perfRatio >= 1.2) newMargin -= 2;
+          else if (li.perfRatio > 1.0) newMargin -= 5;
+        }
+      }
+      
+      newMargin = Math.max(5, Math.min(95, newMargin));
+      
+      // Ajustement du CPM Revenue (liberté totale)
+      if (marginGoal === "increase") {
+        if (li.perfRatio >= 1.2) {
+          newCpmRevenue = li.cpmRevenue * 1.08;
+        } else if (li.perfRatio >= 1.0) {
+          newCpmRevenue = li.cpmRevenue * 1.05;
+        }
+      } else {
+        if (li.perfRatio >= 1.0) {
+          newCpmRevenue = li.cpmRevenue * 0.97;
+        }
+      }
+      
+      return { ...li, newMargin, newCpmRevenue };
+    });
+    
+    // Réallocation des budgets (logique standard)
+    const itemsWithScore = optimizedItems.map(item => {
+      let allocationScore = 0;
+      
+      if (item.perfRatio === 0) {
+        allocationScore = 0;
+      } else {
+        if (marginGoal === "increase") {
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + item.newMargin / 100);
+        } else {
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + (100 - item.newMargin) / 100);
+        }
+      }
+      
+      return { ...item, allocationScore };
+    });
+    
+    const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
+    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    
+    optimizedItems = itemsWithScore.map(li => {
+      let finalSpend = li.spend || 0;
+      
+      if (!lockedLines.has(li.id)) {
+        if (isFin && li.perfRatio === 0) {
+          finalSpend = (li.spend || 0) * 0.1;
+        } else {
+          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
+        }
+      }
+      
+      return { 
+        id: li.id,
+        name: li.name,
+        spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
+        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
+        marginPct: Number(li.newMargin.toFixed(2)),
+        kpiActual: li.kpiActual
+      };
+    });
+  }
+  
+  setProposedOptimizations(optimizedItems);
+};
 
   const applyOptimizations = () => {
     if (proposedOptimizations) {
@@ -574,75 +536,6 @@ const handleOptimize = () => {
       alert("Optimisations appliquées avec succès.");
     }
   };
-
-  // ✅ FONCTION : Préparer les données des graphiques
-  const prepareChartData = () => {
-    if (!project.dailyEntries || project.dailyEntries.length === 0) return [];
-
-    if (chartTimeRange === "daily") {
-      return project.dailyEntries.map(entry => ({
-        date: new Date(entry.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-        fullDate: entry.date,
-        budgetCumul: entry.budgetSpentCumulative,
-        budgetDaily: entry.budgetSpentYesterday,
-        cpmRev: entry.cpmRevenueYesterday,
-        marginPct: entry.marginPctYesterday,
-        kpi: entry.kpiYesterday
-      }));
-    } else {
-      const weeklyData: Record<string, {
-        budgetCumul: number;
-        budgetWeekly: number;
-        cpmRevSum: number;
-        marginSum: number;
-        kpiSum: number;
-        count: number;
-      }> = {};
-
-      project.dailyEntries.forEach(entry => {
-        const date = new Date(entry.date);
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay() + 1);
-        const weekKey = weekStart.toISOString().split('T')[0];
-
-        if (!weeklyData[weekKey]) {
-          weeklyData[weekKey] = {
-            budgetCumul: 0,
-            budgetWeekly: 0,
-            cpmRevSum: 0,
-            marginSum: 0,
-            kpiSum: 0,
-            count: 0
-          };
-        }
-
-        weeklyData[weekKey].budgetCumul = entry.budgetSpentCumulative;
-        weeklyData[weekKey].budgetWeekly += entry.budgetSpentYesterday;
-        weeklyData[weekKey].cpmRevSum += entry.cpmRevenueYesterday;
-        weeklyData[weekKey].marginSum += entry.marginPctYesterday;
-        weeklyData[weekKey].kpiSum += entry.kpiYesterday;
-        weeklyData[weekKey].count += 1;
-      });
-
-      return Object.entries(weeklyData)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([weekKey, data]) => ({
-          date: `Sem. ${new Date(weekKey).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`,
-          fullDate: weekKey,
-          budgetCumul: data.budgetCumul,
-          budgetDaily: data.budgetWeekly,
-          cpmRev: data.cpmRevSum / data.count,
-          marginPct: data.marginSum / data.count,
-          kpi: data.kpiSum / data.count
-        }));
-    }
-  };
-
-  const chartData = prepareChartData();
-
-  // ====================================================================
-  // 🎨 JSX - RENDU COMPLET DU COMPOSANT
-  // ====================================================================
 
   return (
     <div className="flex h-full overflow-hidden bg-[#f8f9fa] relative">
@@ -1002,7 +895,6 @@ const handleOptimize = () => {
                 { id: "analyse", label: "💰 Analyse" },
                 { id: "comparateur", label: "🧮 Marge" },
                 { id: "multilines", label: "🎛️ Optimisation Multi-Lines" },
-                { id: "suivi", label: "📊 Suivi Quotidien" },
                 { id: "historique", label: "📜 Historique" },
                 { id: "notes", label: "📝 Notes" }
               ].map(t => (
@@ -1020,861 +912,1115 @@ const handleOptimize = () => {
             </div>
 
             <div className="p-8">
-
-// ====================================================================
-// ⚠️ FIN DE LA PARTIE 2/3
-// ====================================================================
-// CONTINUEZ AVEC LA PARTIE 3/3 (Onglets Suivi/Historique/Notes)
-// ====================================================================
-
-              {/* TAB: Analyse */}
               {activeTab === "analyse" && (
+                <div className="space-y-4">
+                  {isFin && project.actualKpi <= project.targetKpi ? (
+                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
+                      <div className="bg-white p-2 rounded-full shadow-sm">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg">CONFORT</h4>
+                        <p className="text-emerald-700 mt-1">Marge de manœuvre disponible. Le KPI est atteint, vous pouvez optimiser la marge.</p>
+                      </div>
+                    </div>
+                  ) : !isFin && project.actualKpi >= project.targetKpi ? (
+                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start gap-4 text-emerald-900">
+                      <div className="bg-white p-2 rounded-full shadow-sm">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg">CONFORT</h4>
+                        <p className="text-emerald-700 mt-1">Qualité au top. Le KPI est atteint.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-4 text-red-900">
+                      <div className="bg-white p-2 rounded-full shadow-sm">
+                        <AlertTriangle className="w-6 h-6 text-red-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg">TENSION</h4>
+                        <p className="text-red-700 mt-1">Optimisez la performance avant la marge. Le KPI n'est pas atteint.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "comparateur" && (
                 <div className="space-y-8">
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="col-span-2 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-8">
-                      <h3 className="text-lg font-bold text-blue-900 mb-6 flex items-center gap-3">
-                        <Activity className="w-6 h-6 text-blue-600" />
-                        Statut de Trading
-                      </h3>
-                      <div className="space-y-6">
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Marge</label>
+                      <span className={cn("font-bold px-3 py-1 rounded-full text-sm", uplift >= 0 ? "text-blue-600 bg-blue-100" : "text-red-600 bg-red-100")}>
+                        {uplift > 0 ? "+" : ""}{uplift.toFixed(1)} Pts
+                      </span>
+                    </div>
+                    <input 
+                      type="range" min="-20" max="20" step="0.2"
+                      className={cn("w-full", uplift >= 0 ? "accent-blue-600" : "accent-red-600")}
+                      value={uplift}
+                      onChange={(e) => updateUplift(Number(e.target.value))}
+                    />
+
+                    {/* Bloc Calculation IIFE MODIFIÉ */}
+                    {(() => {
+                      const newMargin = currentMarginPctCalc + uplift;
+                      const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
+
+                      const budgetRestant = project.budgetTotal - project.budgetSpent;
+                      
+                      // Calcul du cost déjà dépensé avec l'ancienne marge
+                      const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
+                      
+                      let costDSP = 0;
+                      let totalCostDSP = 0;
+
+                      if (project.inputMode === "CPM Cost") {
+                        if (uplift >= 0) {
+                          // Cas Hausse de marge : 
+                          // 1. On calcule le nouveau budget cost pour ce qu'il reste à dépenser
+                          costDSP = budgetRestant * (1 - newMargin / 100);
+                          // 2. On calcule le total (ce qui a été dépensé + ce qu'il reste à dépenser)
+                          totalCostDSP = costDejaDepense + costDSP;
+                        } else {
+                          // Cas Baisse de marge :
+                          const costRestant = budgetRestant * (1 - newMargin / 100);
+                          costDSP = costDejaDepense + costRestant;
+                          totalCostDSP = costDSP;
+                        }
+                      }
+
+                      return (
+                        <div className="mt-6 bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                          <div>
+                            <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Nouvelle Marge Globale</div>
+                            <div className="text-xl font-black text-gray-900">{newMargin.toFixed(2)} %</div>
+                          </div>
+                          <div className="text-gray-300 px-4">
+                            <ArrowRight className="w-6 h-6" />
+                          </div>
+                          <div className="text-right">
+                            {project.inputMode === "CPM Cost" ? (
+                              <>
+                                <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Cost dans le DSP</div>
+                                <div className="text-xl font-black text-blue-600">{costDSP.toFixed(2)} {currSym}</div>
+                                <div className="text-[10px] text-gray-400 mt-1">
+                                  {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
+                                </div>
+                                
+                                {/* --- NOUVEAU BLOC : Affichage du Total à saisir en cas de hausse --- */}
+                                {uplift > 0 && (
+                                   <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                                     <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
+                                     <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
+                                       {totalCostDSP.toFixed(2)} {currSym}
+                                     </div>
+                                   </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Total Media Cost Plus</div>
+                                <div className="text-xl font-black text-blue-600">{tmcp.toFixed(2)} %</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                         
+                    {/* Bouton Appliquer */}
+                    <div className="flex justify-end mt-6">
+                      <button 
+                        onClick={applyMarginChange}
+                        disabled={uplift === 0}
+                        className={cn(
+                          "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm",
+                          uplift === 0 
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                            : uplift > 0 
+                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                              : "bg-amber-600 text-white hover:bg-amber-700"
+                        )}
+                      >
+                        {uplift > 0 ? (
+                          <>
+                            <TrendingUp className="w-4 h-4" />
+                            📈 Appliquer Hausse
+                          </>
+                        ) : uplift < 0 ? (
+                          <>
+                            <TrendingDown className="w-4 h-4" />
+                            📉 Appliquer Baisse
+                          </>
+                        ) : (
+                          <>
+                            <Minus className="w-4 h-4" />
+                            Aucun changement
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Options 1 & 2 */}
+                    <div className="grid grid-cols-2 gap-6 mt-8">
+                      {/* Option 1 */}
+                      <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                        <h4 className="text-blue-900 font-bold text-base mb-2">
+                          {uplift >= 0 ? "🔵 OPTION 1 : AUGMENTER CPM REVENU" : "🔵 OPTION 1 : BAISSER CPM REVENU"}
+                        </h4>
+                        <p className="text-gray-500 text-sm mb-6">
+                          {uplift >= 0 ? "Garder le Bid (Qualité stable), augmenter le CPM Revenu." : "Garder le Bid (Qualité stable), baisser le CPM Revenu."}
+                        </p>
+                        
                         {(() => {
-                          const gapPct = ((project.cpmRevenueActual - project.cpmSoldCap) / project.cpmSoldCap) * 100;
-                          const isConfort = gapPct >= 10;
-                          const isTension = gapPct <= -5;
+                          const newMarg = currentMarginPctCalc + uplift;
+                          const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
+                          const exceeds = newRevOpt1 > project.cpmSoldCap;
+                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
+                          
+                          let kpiOpt1 = 0, kpiPess1 = 0;
+                          if (isFin && perfRate > 0) {
+                            kpiOpt1 = project.kpiType !== "CPM" ? newRevOpt1 / (perfRate * 1000) : newRevOpt1;
+                            kpiPess1 = project.kpiType !== "CPM" ? newRevOpt1 / ((perfRate * 0.95) * 1000) : newRevOpt1;
+                          } else if (!isFin) {
+                            kpiOpt1 = project.actualKpi;
+                            kpiPess1 = project.actualKpi * 0.95;
+                          }
 
                           return (
-                            <div className={cn("p-6 rounded-xl border-2", 
-                              isConfort ? "bg-emerald-50 border-emerald-300" : 
-                              isTension ? "bg-red-50 border-red-300" : 
-                              "bg-yellow-50 border-yellow-300"
-                            )}>
-                              <div className="flex items-center gap-4 mb-4">
-                                {isConfort ? <CheckCircle2 className="w-8 h-8 text-emerald-600" /> :
-                                 isTension ? <AlertTriangle className="w-8 h-8 text-red-600" /> :
-                                 <Minus className="w-8 h-8 text-yellow-600" />}
-                                <div>
-                                  <div className="text-2xl font-bold">
-                                    {isConfort ? "CONFORT" : isTension ? "TENSION" : "NEUTRE"}
-                                  </div>
-                                  <div className="text-sm opacity-75">
-                                    {isConfort ? "Écart favorable de " : isTension ? "Écart défavorable de " : "Écart de "}
-                                    <span className="font-bold">{Math.abs(gapPct).toFixed(1)}%</span>
-                                  </div>
+                            <div className="space-y-4">
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau CPM</div>
+                                <div className="text-2xl font-black text-gray-900">{newRevOpt1.toFixed(2)} {currSym}</div>
+                                {exceeds && <div className="text-xs text-red-500 font-bold mt-2 bg-red-50 p-2 rounded-md">⛔ Plafond ({project.cpmSoldCap}) dépassé</div>}
+                              </div>
+                              
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
+                                </div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
+                                  <span className="text-sm font-bold text-emerald-600">
+                                    {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
+                                  <span className="text-sm font-bold text-red-600">
+                                    {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  </span>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <span className="opacity-75">CPM Vendu Cap:</span>
-                                  <div className="font-bold text-lg">{project.cpmSoldCap.toFixed(2)} {currSym}</div>
+
+                              <details className="group bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
+                                <summary className="cursor-pointer p-3 text-sm font-bold text-blue-900 flex items-center justify-between list-none">
+                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Pourquoi ?</span>
+                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                                </summary>
+                                <div className="p-3 pt-0 text-xs text-blue-800 leading-relaxed border-t border-blue-100/50 mt-1">
+                                  <strong>Mécanique :</strong> {uplift >= 0 ? "En augmentant le CPM facturé sans toucher au bid (CPM Cost), le win-rate et l'accès aux inventaires restent identiques. La qualité (CTR, CVR) ne bouge pas." : "En baissant le CPM facturé, vous réduisez votre marge mais le setup d'achat reste le même."}<br/><br/>
+                                  <strong>Impact {project.kpiType} :</strong> L'impact est purement mathématique. La variation (optimiste/pessimiste) reflète uniquement la volatilité naturelle de l'algorithme de pacing du DSP (±5%).
                                 </div>
-                                <div>
-                                  <span className="opacity-75">CPM Revenu Actuel:</span>
-                                  <div className="font-bold text-lg">{project.cpmRevenueActual.toFixed(2)} {currSym}</div>
-                                </div>
-                              </div>
+                              </details>
                             </div>
                           );
                         })()}
-
-                        <div className="grid grid-cols-2 gap-6">
-                          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                            <div className="text-sm text-gray-600 mb-2">Budget Dépensé</div>
-                            <div className="text-3xl font-bold text-gray-900">{project.budgetSpent.toFixed(0)} {currSym}</div>
-                            <div className="text-xs text-gray-500 mt-2">
-                              sur {project.budgetTotal.toFixed(0)} {currSym} ({(pctProgress * 100).toFixed(1)}%)
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                            <div className="text-sm text-gray-600 mb-2">Gain Réalisé</div>
-                            <div className="text-3xl font-bold text-emerald-600">{gainRealized.toFixed(0)} {currSym}</div>
-                            <div className="text-xs text-gray-500 mt-2">
-                              Restant possible: {gainRemaining.toFixed(0)} {currSym}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                      <h3 className="text-lg font-bold text-gray-900 mb-6">Métriques Clés</h3>
-                      <div className="space-y-4">
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Marge Pondérée</div>
-                          <div className="text-2xl font-bold text-gray-900">{displayMargin.toFixed(2)}%</div>
-                        </div>
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">CPM Cost Net</div>
-                          <div className="text-2xl font-bold text-gray-900">{cpmCostActuelCalc.toFixed(2)} {currSym}</div>
-                        </div>
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Budget Restant</div>
-                          <div className="text-2xl font-bold text-blue-600">{budgetRemaining.toFixed(0)} {currSym}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB: Comparateur */}
-              {activeTab === "comparateur" && (
-                <div className="space-y-8">
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200">
-                    <h3 className="text-xl font-bold text-blue-900 mb-6 flex items-center gap-3">
-                      <BarChart3 className="w-6 h-6" />
-                      Simulateur de Marge
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-8 mb-8">
-                      <div className="bg-white rounded-xl p-6 border-2 border-blue-300 shadow-lg">
-                        <div className="text-sm font-bold text-blue-600 mb-4 uppercase tracking-wider">Option 1: Statut Actuel</div>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">Marge</span>
-                            <span className="text-xl font-bold text-blue-900">{currentMarginPctCalc.toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">CPM Cost</span>
-                            <span className="text-lg font-bold text-gray-900">{cpmCostActuelCalc.toFixed(2)} {currSym}</span>
-                          </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">CPM Revenue</span>
-                            <span className="text-lg font-bold text-gray-900">{project.cpmRevenueActual.toFixed(2)} {currSym}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-2">
-                            <span className="text-sm text-gray-600">Gain sur budget restant</span>
-                            <span className="text-lg font-bold text-emerald-600">{gainRemaining.toFixed(0)} {currSym}</span>
-                          </div>
-                        </div>
                       </div>
 
-                      <div className="bg-white rounded-xl p-6 border-2 border-emerald-300 shadow-lg">
-                        <div className="text-sm font-bold text-emerald-600 mb-4 uppercase tracking-wider">Option 2: Après Modification</div>
-                        <div className="mb-4">
-                          <label className="block text-xs text-gray-600 mb-2 font-medium">Variation de Marge (points)</label>
-                          <input 
-                            type="range" 
-                            min="-20" max="20" step="0.5"
-                            className="w-full accent-emerald-600"
-                            value={uplift}
-                            onChange={(e) => updateUplift(Number(e.target.value))}
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>-20%</span>
-                            <span className="font-bold text-emerald-600">{uplift > 0 ? '+' : ''}{uplift.toFixed(1)}%</span>
-                            <span>+20%</span>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">Marge projetée</span>
-                            <span className="text-xl font-bold text-emerald-900">{(currentMarginPctCalc + uplift).toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">CPM Cost projeté</span>
-                            <span className="text-lg font-bold text-gray-900">
-                              {(project.cpmRevenueActual * (1 - (currentMarginPctCalc + uplift) / 100)).toFixed(2)} {currSym}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span className="text-sm text-gray-600">CPM Revenue</span>
-                            <span className="text-lg font-bold text-gray-900">{project.cpmRevenueActual.toFixed(2)} {currSym}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-2">
-                            <span className="text-sm text-gray-600">Gain projeté</span>
-                            <span className="text-lg font-bold text-emerald-600">
-                              {(budgetRemaining * ((currentMarginPctCalc + uplift) / 100)).toFixed(0)} {currSym}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 border border-gray-200">
-                      <h4 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Projection Comparative</h4>
-                      <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={[
-                          { name: "Actuel", option1: gainRemaining, option2: budgetRemaining * ((currentMarginPctCalc + uplift) / 100) },
-                          { name: "Projection", option1: gainRemaining, option2: budgetRemaining * ((currentMarginPctCalc + uplift) / 100) }
-                        ]}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="name" stroke="#6b7280" style={{ fontSize: '12px' }} />
-                          <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                            formatter={(value: any) => `${Number(value).toFixed(0)} ${currSym}`}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          <Line type="monotone" dataKey="option1" stroke="#3b82f6" strokeWidth={2} name="Option 1: Actuel" dot={{ r: 4 }} />
-                          <Line type="monotone" dataKey="option2" stroke="#10b981" strokeWidth={2} name="Option 2: Après Modif" dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <button 
-                      onClick={applyMarginChange}
-                      className="w-full mt-6 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-                    >
-                      <ArrowRight className="w-5 h-5" />
-                      Appliquer la Modification de Marge
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB: Multi-Lines */}
-              {activeTab === "multilines" && (
-                <div className="space-y-8">
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-8 border border-purple-200">
-                    <h3 className="text-xl font-bold text-purple-900 mb-6 flex items-center gap-3">
-                      <Wand2 className="w-6 h-6" />
-                      Optimisation Intelligente Multi-Lines
-                    </h3>
-
-                    <div className="grid grid-cols-3 gap-6 mb-6">
-                      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                        <label className="block text-sm font-bold text-gray-700 mb-3">Objectif de Trading</label>
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => setMarginGoal("increase")}
-                            className={cn("w-full p-3 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2",
-                              marginGoal === "increase" ? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-gray-200 text-gray-600 hover:border-emerald-300"
-                            )}
-                          >
-                            <TrendingUp className="w-4 h-4" />
-                            Augmenter Marge
-                          </button>
-                          <button
-                            onClick={() => setMarginGoal("decrease")}
-                            className={cn("w-full p-3 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2",
-                              marginGoal === "decrease" ? "border-orange-500 bg-orange-50 text-orange-900" : "border-gray-200 text-gray-600 hover:border-orange-300"
-                            )}
-                          >
-                            <TrendingDown className="w-4 h-4" />
-                            Baisser Marge
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                        <label className="block text-sm font-bold text-gray-700 mb-3">Respect CPM Revenue Cap</label>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => setRespectCpmCap(!respectCpmCap)}
-                            className={cn("flex-1 p-3 rounded-lg border-2 font-medium transition-all",
-                              respectCpmCap ? "border-blue-500 bg-blue-50 text-blue-900" : "border-gray-200 text-gray-600"
-                            )}
-                          >
-                            {respectCpmCap ? "Oui" : "Non"}
-                          </button>
-                        </div>
-                        <div className="mt-3 text-xs text-gray-500">
-                          Cap: <span className="font-bold">{project.cpmSoldCap.toFixed(2)} {currSym}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                        <label className="block text-sm font-bold text-gray-700 mb-3">Importer Excel</label>
-                        <input 
-                          type="file" 
-                          accept=".xlsx,.xls,.csv"
-                          onChange={handleFileUpload}
-                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleOptimize}
-                      disabled={!marginGoal}
-                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Wand2 className="w-5 h-5" />
-                      Générer Optimisations
-                    </button>
-                  </div>
-
-                  {proposedOptimizations && (
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-6">
-                        <h4 className="text-xl font-bold flex items-center gap-3">
-                          <CheckCircle2 className="w-6 h-6" />
-                          Optimisations Proposées
+                      {/* Option 2 */}
+                      <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                        <h4 className="text-amber-900 font-bold text-base mb-2">
+                          {uplift >= 0 ? "🟠 OPTION 2 : BAISSE DU BID" : "🟠 OPTION 2 : HAUSSE DU BID"}
                         </h4>
-                      </div>
-                      <div className="p-8">
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b-2 border-gray-200">
-                                <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">Line Item</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Spend ({currSym})</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">CPM Rev ({currSym})</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Marge (%)</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">KPI</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {proposedOptimizations.map((li, idx) => (
-                                <tr key={li.id} className={cn("border-b border-gray-100", idx % 2 === 0 ? "bg-gray-50" : "bg-white")}>
-                                  <td className="py-3 px-4 text-sm font-medium text-gray-900">{li.name}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-bold text-gray-900">{li.spend.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-medium text-gray-700">{li.cpmRevenue.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-bold text-emerald-600">{li.marginPct.toFixed(2)}%</td>
-                                  <td className="py-3 px-4 text-sm text-right font-medium text-gray-700">{fmtKpi(li.kpiActual)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <button
-                          onClick={applyOptimizations}
-                          className="w-full mt-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                          Appliquer les Optimisations
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                        <p className="text-gray-500 text-sm mb-6">
+                          {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
+                        </p>
+                        
+                        {(() => {
+                          const newMarg = currentMarginPctCalc + uplift;
+                          const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
+                          const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
+                          
+                          let dropOpt = 1;
+                          let dropPess = 1;
+                          let expertExplanation = "";
+                          
+                          const isStrictClick = attrView === 0;
+                          const isLongView = attrView >= 2;
+                          const isMidView = attrView >= 1 && attrView < 2;
+                          
+                          switch(project.kpiType) {
+                            case "CPA":
+                            case "CPL":
+                              if (priceDrop >= 0) {
+                                if (isLongView) {
+                                  dropOpt = 0.85;
+                                  dropPess = 1.05;
+                                  expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique.`;
+                                } else if (isMidView) {
+                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
+                                  dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
+                                  expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus.`;
+                                } else {
+                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5));
+                                  dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
+                                  expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus.`;
+                                }
+                              } else {
+                                if (isStrictClick) {
+                                  dropOpt = 1 - (priceDrop * 1.8);
+                                  dropPess = 1 - (priceDrop * 0.9);
+                                  expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable.";
+                                } else {
+                                  dropOpt = 1 - (priceDrop * 1.3);
+                                  dropPess = 1 - (priceDrop * 0.7);
+                                  expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding.";
+                                }
+                              }
+                              break;
 
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gray-50 px-8 py-4 border-b border-gray-200">
-                      <h4 className="text-lg font-bold text-gray-900">Configuration Actuelle des Lines</h4>
+                            case "CPV":
+                              if (priceDrop >= 0) {
+                                if (attrClick > 7) {
+                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
+                                  dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                                  expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité.`;
+                                } else {
+                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8));
+                                  dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
+                                  expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge.`;
+                                }
+                              } else {
+                                dropOpt = 1 - (priceDrop * 1.4);
+                                dropPess = 1 - (priceDrop * 0.8);
+                                expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible.";
+                              }
+                              break;
+
+                            case "CPCV":
+                              if (priceDrop >= 0) {
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
+                                expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés.";
+                              } else {
+                                dropOpt = 1 - (priceDrop * 1.2);
+                                dropPess = 1 - (priceDrop * 0.5);
+                                expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices.";
+                              }
+                              break;
+
+                            case "CTR":
+                            case "CPC":
+                              if (priceDrop >= 0) {
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
+                                expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position.";
+                              } else {
+                                dropOpt = 1 - (priceDrop * 1.4);
+                                dropPess = 1 - (priceDrop * 0.7);
+                                expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions.";
+                              }
+                              break;
+
+                            default:
+                              if (priceDrop >= 0) {
+                                dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
+                                dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
+                                expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose aux sites MFA.";
+                              } else {
+                                dropOpt = 1 - (priceDrop * 0.6);
+                                dropPess = 1 - (priceDrop * 0.3);
+                                expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists Premium.";
+                              }
+                              break;
+                          }
+                          
+                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
+                          let kpiOpt2 = 0, kpiPess2 = 0;
+
+                          if (isFin) {
+                            if (project.kpiType === "CPM") {
+                              kpiOpt2 = project.cpmRevenueActual;
+                              kpiPess2 = project.cpmRevenueActual;
+                            } else if (perfRate > 0) {
+                              kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
+                              kpiPess2 = project.cpmRevenueActual / ((perfRate * dropPess) * 1000);
+                            }
+                          } else {
+                            kpiOpt2 = project.actualKpi * dropOpt;
+                            kpiPess2 = project.actualKpi * dropPess;
+                          }
+
+                          return (
+                            <div className="space-y-4">
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau Bid CPM Cost</div>
+                                <div className="text-2xl font-black text-gray-900">{newCostOpt2.toFixed(2)} {currSym}</div>
+                              </div>
+                              
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
+                                </div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
+                                  <span className="text-sm font-bold text-emerald-600">
+                                    {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
+                                  <span className="text-sm font-bold text-red-600">
+                                    {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
+                                <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
+                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert</span>
+                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                                </summary>
+                                <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
+                                  <strong>{project.kpiType} Impact :</strong> {expertExplanation}
+                                </div>
+                              </details>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
-                    <div className="p-8">
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b-2 border-gray-200">
-                              <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">
-                                <Lock className="w-4 h-4 inline mr-2" />
-                              </th>
-                              <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">Line Item</th>
-                              <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Spend ({currSym})</th>
-                              <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">CPM Rev ({currSym})</th>
-                              <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Marge (%)</th>
-                              <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">KPI</th>
-                              <th className="text-center py-3 px-4 text-sm font-bold text-gray-700">Actions</th>
+
+                    {/* Chart */}
+                    <div className="mt-8 pt-8 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">Projection des Gains</h3>
+                          <p className="text-sm text-gray-500">Évolution de la marge cumulée sur la durée de la campagne</p>
+                        </div>
+                        <div className={cn("border rounded-xl px-6 py-3 text-right", uplift >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100")}>
+                          <div className={cn("font-bold text-xs uppercase tracking-wider mb-1", uplift >= 0 ? "text-emerald-800" : "text-red-800")}>
+                            Gain Potentiel
+                          </div>
+                          <div className={cn("text-2xl font-black", uplift >= 0 ? "text-emerald-600" : "text-red-600")}>
+                            {uplift > 0 ? "+" : ""}{(budgetRemaining * (uplift / 100)).toLocaleString()} {currSym}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="h-80 w-full bg-gray-50 rounded-xl p-4 border border-gray-100">
+                        {(() => {
+                          const gainPotentiel = budgetRemaining * (uplift / 100);
+                          const data = [];
+                          for (let i = 0; i <= project.durationDays; i++) {
+                            if (i <= currentDay) {
+                              data.push({ day: i, Acquis: (gainRealized / currentDay) * i });
+                            } else {
+                              const stepsRemaining = project.durationDays - currentDay;
+                              const step = i - currentDay;
+                              data.push({
+                                day: i,
+                                Actuel: gainRealized + (gainRemaining / stepsRemaining) * step,
+                                Optimisé: gainRealized + ((gainRemaining + gainPotentiel) / stepsRemaining) * step
+                              });
+                            }
+                          }
+                          return (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={data} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} />
+                                <YAxis tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}${currSym}`} />
+                                <Tooltip 
+                                  contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                  formatter={(value: number) => [`${value.toFixed(0)} ${currSym}`]}
+                                />
+                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                                <Line type="monotone" dataKey="Acquis" stroke="#0f172a" strokeWidth={3} dot={false} />
+                                <Line type="monotone" dataKey="Actuel" stroke="#94a3b8" strokeWidth={3} strokeDasharray="5 5" dot={false} />
+                                <Line type="monotone" dataKey="Optimisé" stroke="#3b82f6" strokeWidth={3} strokeDasharray="5 5" dot={false} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "multilines" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-gray-900">Gestion des Line Items</h3>
+                    <div className="flex gap-3">
+                      <label className="cursor-pointer flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm">
+                        <Upload className="w-4 h-4" />
+                        Importer Excel
+                        <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl">
+  <div className="mb-4">
+    <h4 className="font-bold text-blue-900 mb-1">Objectif d'optimisation</h4>
+    <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
+  </div>
+  <div className="flex gap-2 mb-4">
+    <button 
+      onClick={() => setMarginGoal("increase")}
+      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
+    >
+      📈 Augmenter la Marge
+    </button>
+    <button 
+      onClick={() => setMarginGoal("decrease")}
+      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
+    >
+      📉 Baisser la Marge (Boost KPI)
+    </button>
+  </div>
+  
+  {/* Contrainte CPM Cap */}
+  <div className="border-t border-blue-200 pt-4">
+    <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
+    <p className="text-xs text-blue-700 mb-3">Le CPM Vendu Cap est à <strong>{project.cpmSoldCap.toFixed(2)} {currSym}</strong></p>
+    <div className="flex gap-2">
+      <button 
+        onClick={() => setRespectCpmCap(true)}
+        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", respectCpmCap ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50")}
+      >
+        🛡️ Respecter le CPM Vendu
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation avec CPM moyen = Cap</div>
+      </button>
+      <button 
+        onClick={() => setRespectCpmCap(false)}
+        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", !respectCpmCap ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50")}
+      >
+        🚀 Ne pas respecter le CPM Vendu
+        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (sans contrainte)</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+                  <div className="flex justify-end">
+                    <button 
+                      onClick={handleOptimize}
+                      className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Lancer l'Optimisation
+                    </button>
+                  </div>
+
+{proposedOptimizations && (
+                    <>
+                      <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="text-xs text-blue-800 uppercase bg-blue-50 border-b border-blue-200">
+                            <tr>
+                              <th className="px-6 py-4 font-bold">Line Item</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Dépense</th>
+                              <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                              <th className="px-6 py-4 font-bold">Nouvelle Marge %</th>
+                              <th className="px-6 py-4 font-bold">KPI Actuel</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            {project.lineItems.map((li, idx) => (
-                              <tr key={li.id} className={cn("border-b border-gray-100", idx % 2 === 0 ? "bg-gray-50" : "bg-white")}>
-                                <td className="py-3 px-4">
-                                  <button
-                                    onClick={() => toggleLock(li.id)}
-                                    className={cn("p-1 rounded transition-colors", lockedLines.has(li.id) ? "text-red-600 hover:text-red-700" : "text-gray-400 hover:text-gray-600")}
-                                  >
-                                    {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                                  </button>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <input
-                                    type="text"
-                                    value={li.name}
-                                    onChange={(e) => {
-                                      const updated = project.lineItems.map(item =>
-                                        item.id === li.id ? { ...item, name: e.target.value } : item
-                                      );
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="w-full text-sm font-medium text-gray-900 bg-transparent border-none outline-none"
-                                  />
-                                </td>
-                                <td className="py-3 px-4">
-                                  <input
-                                    type="number"
-                                    value={li.spend || 0}
-                                    onChange={(e) => {
-                                      const updated = project.lineItems.map(item =>
-                                        item.id === li.id ? { ...item, spend: Number(e.target.value) } : item
-                                      );
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="w-full text-sm text-right font-bold text-gray-900 bg-transparent border-none outline-none"
-                                  />
-                                </td>
-                                <td className="py-3 px-4">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={li.cpmRevenue}
-                                    onChange={(e) => {
-                                      const updated = project.lineItems.map(item =>
-                                        item.id === li.id ? { ...item, cpmRevenue: Number(e.target.value) } : item
-                                      );
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="w-full text-sm text-right font-medium text-gray-700 bg-transparent border-none outline-none"
-                                  />
-                                </td>
-                                <td className="py-3 px-4">
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    value={li.marginPct}
-                                    onChange={(e) => {
-                                      const updated = project.lineItems.map(item =>
-                                        item.id === li.id ? { ...item, marginPct: Number(e.target.value) } : item
-                                      );
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="w-full text-sm text-right font-bold text-emerald-600 bg-transparent border-none outline-none"
-                                  />
-                                </td>
-                                <td className="py-3 px-4">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={li.kpiActual}
-                                    onChange={(e) => {
-                                      const updated = project.lineItems.map(item =>
-                                        item.id === li.id ? { ...item, kpiActual: Number(e.target.value) } : item
-                                      );
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="w-full text-sm text-right font-medium text-gray-700 bg-transparent border-none outline-none"
-                                  />
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                  <button
-                                    onClick={() => {
-                                      const updated = project.lineItems.filter(item => item.id !== li.id);
-                                      updateField("lineItems", updated);
-                                    }}
-                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                          <tbody className="divide-y divide-blue-100">
+                            {proposedOptimizations.map((li) => {
+                              const original = project.lineItems.find(o => o.id === li.id);
+                              const spendDiff = original ? (li.spend || 0) - (original.spend || 0) : 0;
+                              const marginDiff = original ? li.marginPct - original.marginPct : 0;
+                              const cpmRevDiff = original ? li.cpmRevenue - original.cpmRevenue : 0;
+                              
+                              return (
+                                <tr key={li.id} className="bg-white hover:bg-blue-50/50 transition-colors">
+                                  <td className="px-6 py-4 font-medium text-gray-900">{li.name}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900 font-bold">
+                                        {li.spend.toFixed(2)} {currSym}
+                                      </span>
+                                      {spendDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium whitespace-nowrap", spendDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({spendDiff > 0 ? "+" : ""}{spendDiff.toFixed(2)} {currSym})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.cpmRevenue.toFixed(2)}</span>
+                                      {cpmRevDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium", cpmRevDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({cpmRevDiff > 0 ? "+" : ""}{cpmRevDiff.toFixed(2)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-gray-900">{li.marginPct.toFixed(2)}%</span>
+                                      {marginDiff !== 0 && (
+                                        <span className={cn("text-xs font-medium ml-1", marginDiff > 0 ? "text-emerald-600" : "text-red-600")}>
+                                          ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)}%)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-gray-600">{li.kpiActual}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
-                      <button
-                        onClick={() => {
-                          const newLine: LineItem = {
-                            id: Date.now().toString(),
-                            name: `Line ${project.lineItems.length + 1}`,
-                            spend: 0,
-                            cpmRevenue: project.cpmRevenueActual,
-                            marginPct: currentMarginPctCalc,
-                            kpiActual: project.actualKpi
-                          };
-                          updateField("lineItems", [...project.lineItems, newLine]);
-                        }}
-                        className="mt-6 w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors"
-                      >
-                        + Ajouter une Line
-                      </button>
-                    </div>
+
+                      <div className="mt-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-3">
+                            <div className="bg-indigo-100 p-2 rounded-lg">
+                                <Activity className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <h4 className="text-lg font-bold text-gray-900">Impact Projeté</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                {(() => {
+                                    const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
+                                    const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
+                                    const oldWeightedCpmRev = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / oldTotalSpend : 0;
+                                    
+                                    const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
+                                    const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
+                                    const newWeightedCpmRev = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / newTotalSpend : 0;
+                                    
+                                    const marginDiff = newWeightedMargin - oldWeightedMargin;
+                                    const cpmRevDiff = newWeightedCpmRev - oldWeightedCpmRev;
+                                    const capDiff = newWeightedCpmRev - project.cpmSoldCap;
+                                    
+                                    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+                                    const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
+                                    const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
+
+                                    return (
+                                        <div className="space-y-6">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="text-xs text-gray-500 mb-1">Nouvelle Marge Globale</div>
+                                                    <div className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
+                                                        {newWeightedMargin.toFixed(2)} %
+                                                    </div>
+                                                    <div className="text-xs text-gray-400 mt-1">
+                                                        ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)} pts)
+                                                    </div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="text-xs text-gray-500 mb-1">Total Dépense</div>
+                                                    <div className="text-xl font-black text-gray-900">
+                                                        {newTotalSpend.toFixed(2)} {currSym}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className={cn("p-3 rounded-lg border", 
+                                                  respectCpmCap && Math.abs(capDiff) <= 0.1 ? "bg-emerald-50 border-emerald-200" : "bg-indigo-50 border-indigo-100"
+                                                )}>
+                                                    <div className="text-xs font-bold text-indigo-800 mb-1 flex items-center justify-between">
+                                                      <span>CPM Revenu Moyen</span>
+                                                      {respectCpmCap && Math.abs(capDiff) <= 0.1 && <span className="text-emerald-600">✓</span>}
+                                                    </div>
+                                                    <div className="text-lg font-black text-indigo-600">
+                                                        {newWeightedCpmRev.toFixed(2)} {currSym}
+                                                    </div>
+                                                    <div className="text-xs text-indigo-500 mt-1">
+                                                      {respectCpmCap && (
+                                                        <>Cap: {project.cpmSoldCap.toFixed(2)} {currSym} (écart: {capDiff > 0 ? "+" : ""}{capDiff.toFixed(2)})</>
+                                                      )}
+                                                    </div>
+                                                </div>
+                                                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                                                    <div className="text-xs font-bold text-emerald-800 mb-1">Projection KPI</div>
+                                                    <div className="flex justify-between items-end">
+                                                        <div className="text-xs text-emerald-600">
+                                                            Pess: <strong>{fmtKpi(kpiPessimistic)}</strong>
+                                                        </div>
+                                                        <div className="text-xs text-emerald-600">
+                                                            Opt: <strong>{fmtKpi(kpiOptimistic)}</strong>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
+                                <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
+                                {respectCpmCap ? (
+                                  <div>
+                                    <p className="mb-2">
+                                      🛡️ <strong>Mode Respecter le Cap</strong> : L'algorithme répartit intelligemment les budgets pour atteindre le CPM Vendu Cap en moyenne pondérée.
+                                    </p>
+                                    <p>
+                                      Les lignes performantes reçoivent plus de budget et peuvent monter jusqu'au Cap, tandis que les lignes moins performantes compensent avec des CPM Revenue plus bas.
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p>
+                                    🚀 <strong>Mode Liberté totale</strong> : {marginGoal === "increase" 
+                                      ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
+                                      : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
+                                  </p>
+                                )}
+                            </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3">
+                        <button 
+                          onClick={() => setProposedOptimizations(null)}
+                          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                        <button 
+                          onClick={applyOptimizations}
+                          className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                          ✅ Appliquer
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 mt-8">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-6 py-4 font-bold">Line Item</th>
+                          <th className="px-6 py-4 font-bold">Dépense Jour</th>
+                          <th className="px-6 py-4 font-bold">CPM Revenu</th>
+                          <th className="px-6 py-4 font-bold">Marge %</th>
+                          <th className="px-6 py-4 font-bold">KPI ({project.kpiType})</th>
+                          <th className="px-6 py-4 font-bold"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {project.lineItems.map((li, idx) => (
+                          <tr key={li.id} className="hover:bg-gray-50 transition-colors bg-white">
+                            <td className="px-6 py-3 flex items-center gap-2">
+                              <button 
+                                onClick={() => toggleLock(li.id)}
+                                className={cn("p-1.5 rounded-md transition-colors", lockedLines.has(li.id) ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
+                              >
+                                {lockedLines.has(li.id) ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                              </button>
+                              <input 
+                                type="text" 
+                                className="w-full bg-transparent border-none focus:ring-0 p-0 text-sm font-medium text-gray-900"
+                                value={li.name}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].name = e.target.value;
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" 
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.spend}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].spend = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.1"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.cpmRevenue}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].cpmRevenue = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.5"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.marginPct}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].marginPct = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3">
+                              <input 
+                                type="number" step="0.01"
+                                className="w-24 bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+                                value={li.kpiActual}
+                                onChange={(e) => {
+                                  const newItems = [...project.lineItems];
+                                  newItems[idx].kpiActual = Number(e.target.value);
+                                  updateField("lineItems", newItems);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <button 
+                                onClick={() => {
+                                  const newItems = project.lineItems.filter((_, i) => i !== idx);
+                                  updateField("lineItems", newItems);
+                                }}
+                                className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+                  <button 
+                    onClick={() => {
+                      updateField("lineItems", [
+                        ...project.lineItems, 
+                        { id: Date.now().toString(), name: "Nouvelle Ligne", spend: 0, cpmRevenue: project.cpmRevenueActual, marginPct: currentMarginPctCalc, kpiActual: project.actualKpi }
+                      ]);
+                    }}
+                    className="text-sm text-blue-600 font-bold hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-lg transition-colors"
+                  >
+                    + Ajouter une ligne
+                  </button>
                 </div>
               )}
 
- {/* TAB: Suivi Quotidien */}
-              {activeTab === "suivi" && (
-                <div className="space-y-8">
-                  <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-8 border border-cyan-200">
-                    <h3 className="text-xl font-bold text-cyan-900 mb-6 flex items-center gap-3">
-                      <Calendar className="w-6 h-6" />
-                      Saisie Données Quotidiennes
-                    </h3>
-
-                    <div className="grid grid-cols-5 gap-4 mb-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                        <input
-                          type="date"
-                          value={dailyForm.date}
-                          onChange={(e) => setDailyForm({ ...dailyForm, date: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Budget Dépensé ({currSym})</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={dailyForm.budgetSpentYesterday}
-                          onChange={(e) => setDailyForm({ ...dailyForm, budgetSpentYesterday: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">CPM Revenue ({currSym})</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={dailyForm.cpmRevenueYesterday}
-                          onChange={(e) => setDailyForm({ ...dailyForm, cpmRevenueYesterday: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Marge (%)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={dailyForm.marginPctYesterday}
-                          onChange={(e) => setDailyForm({ ...dailyForm, marginPctYesterday: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">KPI {project.kpiType}</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={dailyForm.kpiYesterday}
-                          onChange={(e) => setDailyForm({ ...dailyForm, kpiYesterday: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                        />
-                      </div>
+              {activeTab === "historique" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-gray-900">Historique des Modifications</h3>
+                    <div className="text-sm text-gray-500">
+                      {project.history?.length || 0} entrée(s)
                     </div>
-
-                    {showDailyPreview && (
-                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6 mb-6">
-                        <h4 className="text-lg font-bold text-yellow-900 mb-4">📋 Prévisualisation</h4>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div><span className="font-medium text-gray-700">Budget cumulé:</span> <span className="font-bold">{(project.budgetSpent + dailyForm.budgetSpentYesterday).toFixed(2)} {currSym}</span></div>
-                          <div><span className="font-medium text-gray-700">CPM Revenue:</span> <span className="font-bold">{dailyForm.cpmRevenueYesterday.toFixed(2)} {currSym}</span></div>
-                          <div><span className="font-medium text-gray-700">Marge:</span> <span className="font-bold text-emerald-600">{dailyForm.marginPctYesterday.toFixed(2)}%</span></div>
-                          <div><span className="font-medium text-gray-700">KPI:</span> <span className="font-bold">{fmtKpi(dailyForm.kpiYesterday)}</span></div>
-                        </div>
-                        <div className="flex gap-3 mt-4">
-                          <button
-                            onClick={applyDailyEntry}
-                            className="flex-1 bg-emerald-500 text-white py-3 rounded-lg font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
-                          >
-                            <Check className="w-5 h-5" />
-                            Appliquer
-                          </button>
-                          <button
-                            onClick={() => setShowDailyPreview(false)}
-                            className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-400 transition-colors flex items-center justify-center gap-2"
-                          >
-                            <X className="w-5 h-5" />
-                            Annuler
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {!showDailyPreview && (
-                      <button
-                        onClick={() => setShowDailyPreview(true)}
-                        className="w-full bg-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:bg-cyan-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-                      >
-                        <Activity className="w-5 h-5" />
-                        Prévisualiser les données
-                      </button>
-                    )}
                   </div>
 
-                  {chartData.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-bold text-gray-900">Graphiques de Suivi</h3>
-                        <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
-                          <button
-                            onClick={() => setChartTimeRange("daily")}
-                            className={cn("px-4 py-2 rounded-md font-medium text-sm transition-colors", chartTimeRange === "daily" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
-                          >
-                            Quotidien
-                          </button>
-                          <button
-                            onClick={() => setChartTimeRange("weekly")}
-                            className={cn("px-4 py-2 rounded-md font-medium text-sm transition-colors", chartTimeRange === "weekly" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900")}
-                          >
-                            Hebdomadaire
-                          </button>
+                  {(!project.history || project.history.length === 0) ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+                      <div className="text-gray-400 text-4xl mb-3">📜</div>
+                      <h4 className="font-bold text-gray-700 mb-1">Aucun historique</h4>
+                      <p className="text-sm text-gray-500">
+                        Les modifications futures seront enregistrées ici automatiquement.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                        <div className="space-y-6">
+                          {[...project.history].reverse().map((snap, idx) => {
+                            const date = new Date(snap.timestamp);
+                            const isRecent = (Date.now() - date.getTime()) < 24 * 60 * 60 * 1000;
+                            
+                            return (
+                              <div key={idx} className="relative pl-16">
+                                <div className={cn(
+                                  "absolute left-6 w-4 h-4 rounded-full border-4",
+                                  snap.action === "MARGIN_UP" ? "bg-emerald-500 border-emerald-100" :
+                                  snap.action === "MARGIN_DOWN" ? "bg-amber-500 border-amber-100" :
+                                  snap.action === "OPTIMIZATION" ? "bg-blue-500 border-blue-100" :
+                                  "bg-gray-400 border-gray-100"
+                                )}></div>
+                                
+                                <div className={cn(
+                                  "bg-white border rounded-xl p-5 shadow-sm",
+                                  isRecent && "border-blue-300 bg-blue-50/30"
+                                )}>
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "px-3 py-1 rounded-full text-xs font-bold",
+                                        snap.action === "MARGIN_UP" ? "bg-emerald-100 text-emerald-700" :
+                                        snap.action === "MARGIN_DOWN" ? "bg-amber-100 text-amber-700" :
+                                        snap.action === "OPTIMIZATION" ? "bg-blue-100 text-blue-700" :
+                                        "bg-gray-100 text-gray-700"
+                                      )}>
+                                        {snap.action === "MARGIN_UP" ? "📈 MONTÉE MARGE" :
+                                         snap.action === "MARGIN_DOWN" ? "📉 BAISSE MARGE" :
+                                         snap.action === "OPTIMIZATION" ? "🎛️ OPTIMISATION" :
+                                         "💾 SAUVEGARDE"}
+                                      </div>
+                                      {isRecent && (
+                                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">
+                                          RÉCENT
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-500 font-medium">
+                                      {date.toLocaleDateString('fr-FR', { 
+                                        day: '2-digit', 
+                                        month: 'short', 
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-4 gap-4 mb-3">
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Marge</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.marginPct.toFixed(2)} %
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Budget Dépensé</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.budgetSpent.toLocaleString()} {currSym}
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">CPM Cost</div>
+                                      <div className="text-lg font-black text-gray-900">
+                                        {snap.cpmCostActuel.toFixed(2)} {currSym}
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                      <div className="text-xs text-gray-500 mb-1">Gain Réalisé</div>
+                                      <div className="text-lg font-black text-emerald-600">
+                                        {snap.gainRealized.toFixed(0)} {currSym}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {snap.note && (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
+                                      <strong>Note :</strong> {snap.note}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      <div className="space-y-8">
-                        {/* Graphique 1: Budget Cumulé */}
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider">Budget Cumulé ({currSym})</h4>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <AreaChart data={chartData}>
-                              <defs>
-                                <linearGradient id="colorBudget" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
-                              <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                                formatter={(value: any) => [`${Number(value).toFixed(2)} ${currSym}`, 'Budget Cumulé']}
+                      <div className="bg-white border border-gray-100 rounded-xl p-6 mt-8">
+                        <h4 className="font-bold text-gray-900 mb-4">Évolution de la Marge</h4>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart 
+                              data={project.history.map(snap => ({
+                                date: new Date(snap.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+                                marge: snap.marginPct,
+                                gain: snap.gainRealized
+                              }))}
+                              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                              <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                              <YAxis 
+                                yAxisId="left"
+                                tick={{ fontSize: 12, fill: '#64748b' }} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(val) => `${val.toFixed(0)}%`}
                               />
-                              <Area type="monotone" dataKey="budgetCumul" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorBudget)" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
-
-                        {/* Graphique 2: CPM Revenue & Marge % */}
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider">CPM Revenue & Marge %</h4>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
-                              <YAxis yAxisId="left" stroke="#6b7280" style={{ fontSize: '12px' }} label={{ value: `CPM (${currSym})`, angle: -90, position: 'insideLeft', style: { fontSize: '12px' } }} />
-                              <YAxis yAxisId="right" orientation="right" stroke="#6b7280" style={{ fontSize: '12px' }} label={{ value: 'Marge (%)', angle: 90, position: 'insideRight', style: { fontSize: '12px' } }} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                                formatter={(value: any, name: string) => {
-                                  if (name === 'CPM Revenue') return [`${Number(value).toFixed(2)} ${currSym}`, name];
-                                  if (name === 'Marge %') return [`${Number(value).toFixed(2)}%`, name];
-                                  return [value, name];
-                                }}
+                              <YAxis 
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fontSize: 12, fill: '#64748b' }} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(val) => `${val.toFixed(0)}${currSym}`}
                               />
-                              <Legend wrapperStyle={{ fontSize: '12px' }} />
-                              <Line yAxisId="left" type="monotone" dataKey="cpmRev" stroke="#8b5cf6" strokeWidth={2} name="CPM Revenue" dot={{ r: 3 }} />
-                              <Line yAxisId="right" type="monotone" dataKey="marginPct" stroke="#10b981" strokeWidth={2} name="Marge %" dot={{ r: 3 }} />
+                              <Tooltip 
+                                contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              />
+                              <Legend />
+                              <Line 
+                                yAxisId="left"
+                                type="monotone" 
+                                dataKey="marge" 
+                                stroke="#3b82f6" 
+                                strokeWidth={3} 
+                                name="Marge %"
+                                dot={{ r: 4 }}
+                              />
+                              <Line 
+                                yAxisId="right"
+                                type="monotone" 
+                                dataKey="gain" 
+                                stroke="#10b981" 
+                                strokeWidth={3} 
+                                name={`Gain (${currSym})`}
+                                dot={{ r: 4 }}
+                              />
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
-
-                        {/* Graphique 3: KPI */}
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider">KPI {project.kpiType}</h4>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
-                              <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                                formatter={(value: any) => [fmtKpi(Number(value)), 'KPI']}
-                              />
-                              <Bar dataKey="kpi" fill="#f97316" radius={[8, 8, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Historique des entrées quotidiennes */}
-                  {project.dailyEntries && project.dailyEntries.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gray-50 px-8 py-4 border-b border-gray-200">
-                        <h4 className="text-lg font-bold text-gray-900">Historique des Saisies</h4>
-                      </div>
-                      <div className="p-8">
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b-2 border-gray-200">
-                                <th className="text-left py-3 px-4 text-sm font-bold text-gray-700">Date</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Budget ({currSym})</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Budget Cumulé ({currSym})</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">CPM Rev ({currSym})</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">Marge (%)</th>
-                                <th className="text-right py-3 px-4 text-sm font-bold text-gray-700">KPI</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {[...project.dailyEntries].reverse().map((entry, idx) => (
-                                <tr key={entry.id} className={cn("border-b border-gray-100", idx % 2 === 0 ? "bg-gray-50" : "bg-white")}>
-                                  <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                                    {new Date(entry.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                  </td>
-                                  <td className="py-3 px-4 text-sm text-right font-bold text-blue-600">{entry.budgetSpentYesterday.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-bold text-gray-900">{entry.budgetSpentCumulative.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-medium text-gray-700">{entry.cpmRevenueYesterday.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-sm text-right font-bold text-emerald-600">{entry.marginPctYesterday.toFixed(2)}%</td>
-                                  <td className="py-3 px-4 text-sm text-right font-medium text-gray-700">{fmtKpi(entry.kpiYesterday)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
               )}
 
-              {/* TAB: Historique */}
-              {activeTab === "historique" && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-200">
-                    <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-3">
-                      <History className="w-6 h-6" />
-                      Timeline des Modifications
-                    </h3>
-                    {project.history && project.history.length > 0 ? (
-                      <div className="space-y-4">
-                        {[...project.history].reverse().map((snap, idx) => (
-                          <div key={idx} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className={cn("p-2 rounded-lg", 
-                                  snap.action === "MARGIN_UP" ? "bg-emerald-100 text-emerald-600" :
-                                  snap.action === "MARGIN_DOWN" ? "bg-orange-100 text-orange-600" :
-                                  snap.action === "OPTIMIZATION" ? "bg-purple-100 text-purple-600" :
-                                  snap.action === "DAILY_UPDATE" ? "bg-cyan-100 text-cyan-600" :
-                                  "bg-blue-100 text-blue-600"
-                                )}>
-                                  {snap.action === "MARGIN_UP" ? <TrendingUp className="w-5 h-5" /> :
-                                   snap.action === "MARGIN_DOWN" ? <TrendingDown className="w-5 h-5" /> :
-                                   snap.action === "OPTIMIZATION" ? <Wand2 className="w-5 h-5" /> :
-                                   snap.action === "DAILY_UPDATE" ? <Calendar className="w-5 h-5" /> :
-                                   <Activity className="w-5 h-5" />}
-                                </div>
-                                <div>
-                                  <div className="font-bold text-gray-900">
-                                    {snap.action === "MARGIN_UP" ? "Augmentation Marge" :
-                                     snap.action === "MARGIN_DOWN" ? "Baisse Marge" :
-                                     snap.action === "OPTIMIZATION" ? "Optimisation" :
-                                     snap.action === "DAILY_UPDATE" ? "Mise à jour quotidienne" :
-                                     "Modification"}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {new Date(snap.timestamp).toLocaleString('fr-FR', { 
-                                      day: '2-digit', 
-                                      month: 'long', 
-                                      year: 'numeric', 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-lg font-bold text-emerald-600">{snap.marginPct.toFixed(2)}%</div>
-                                <div className="text-xs text-gray-500">Marge</div>
-                              </div>
-                            </div>
-                            {snap.note && (
-                              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 italic border-l-4 border-blue-400">
-                                {snap.note}
-                              </div>
-                            )}
-                            <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
-                              <div>
-                                <div className="text-xs text-gray-500 mb-1">Budget Dépensé</div>
-                                <div className="font-bold text-gray-900">{snap.budgetSpent.toFixed(2)} {currSym}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-gray-500 mb-1">CPM Revenue</div>
-                                <div className="font-bold text-gray-900">{snap.cpmRevenueActual.toFixed(2)} {currSym}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-gray-500 mb-1">CPM Cost</div>
-                                <div className="font-bold text-gray-900">{snap.cpmCostActuel.toFixed(2)} {currSym}</div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-gray-500 mb-1">Gain Réalisé</div>
-                                <div className="font-bold text-emerald-600">{snap.gainRealized.toFixed(2)} {currSym}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-gray-500">
-                        <History className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                        <p className="text-lg font-medium">Aucun historique disponible</p>
-                        <p className="text-sm">Les modifications apparaîtront ici</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB: Notes */}
               {activeTab === "notes" && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl p-8 border border-amber-200">
-                    <h3 className="text-xl font-bold text-amber-900 mb-6">Ajouter une Note</h3>
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const form = e.target as HTMLFormElement;
-                      const titleInput = form.elements.namedItem('title') as HTMLInputElement;
-                      const contentInput = form.elements.namedItem('content') as HTMLTextAreaElement;
-                      
-                      const newNote: ProjectNote = {
-                        id: Date.now().toString(),
-                        title: titleInput.value,
-                        content: contentInput.value,
-                        createdAt: new Date().toISOString()
-                      };
-                      
-                      updateField("notes", [...(project.notes || []), newNote]);
-                      form.reset();
-                    }} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Titre</label>
-                        <input
-                          type="text"
-                          name="title"
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                          placeholder="Titre de la note..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Contenu</label>
-                        <textarea
-                          name="content"
-                          required
-                          rows={4}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                          placeholder="Écrivez votre note ici..."
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 text-white py-3 rounded-lg font-bold hover:from-amber-600 hover:to-yellow-600 transition-all shadow-lg hover:shadow-xl"
-                      >
-                        Ajouter la Note
-                      </button>
-                    </form>
-                  </div>
+  <div className="space-y-6">
+    {/* Vérifier que c'est un projet sauvegardé */}
+    {!project?.id ? (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+        <div className="text-4xl mb-3">⚠️</div>
+        <h4 className="font-bold text-amber-900 mb-2">Projet non sauvegardé</h4>
+        <p className="text-sm text-amber-700">
+          Vous devez sauvegarder votre projet avant de pouvoir ajouter des notes.
+        </p>
+      </div>
+    ) : (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">Notes de campagne</h3>
+          <div className="text-sm text-gray-500">
+            {project.notes?.length || 0} note(s)
+          </div>
+        </div>
 
-                  {project.notes && project.notes.length > 0 && (
-                    <div className="space-y-4">
-                      {[...project.notes].reverse().map((note) => (
-                        <div key={note.id} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between mb-3">
-                            <h4 className="text-lg font-bold text-gray-900">{note.title}</h4>
-                            <button
-                              onClick={() => {
-                                if (confirm('Supprimer cette note ?')) {
-                                  updateField("notes", (project.notes || []).filter(n => n.id !== note.id));
-                                }
-                              }}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                          <div className="text-xs text-gray-500 mt-4">
-                            {new Date(note.createdAt).toLocaleString('fr-FR', { 
-                              day: '2-digit', 
-                              month: 'long', 
-                              year: 'numeric', 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </div>
+        {/* Formulaire d'ajout de note */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">✍️</span>
+            Ajouter une note
+          </h4>
+          <textarea
+            id="note-input"
+            placeholder="Écrivez votre note ici... (ex: Optimisation manuelle effectuée sur la ligne 'Display Mobile')"
+            className="w-full h-32 text-sm border-gray-200 bg-gray-50 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+          />
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={() => {
+                const input = document.getElementById('note-input') as HTMLTextAreaElement;
+                const content = input?.value.trim();
+                
+                if (!content) {
+                  alert("Veuillez écrire une note avant de sauvegarder.");
+                  return;
+                }
+                
+                const newNote: ProjectNote = {
+                  id: Date.now().toString(),
+                  timestamp: new Date().toISOString(),
+                  content
+                };
+                
+                const updatedNotes = [...(project.notes || []), newNote];
+                
+                onChange({
+                  ...project,
+                  notes: updatedNotes,
+                  updatedAt: new Date().toISOString()
+                });
+                
+                input.value = '';
+                alert("✅ Note sauvegardée !");
+              }}
+              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              💾 Sauvegarder la note
+            </button>
+          </div>
+        </div>
+
+        {/* Liste des notes */}
+        {(!project.notes || project.notes.length === 0) ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+            <div className="text-4xl mb-3">📝</div>
+            <h4 className="font-bold text-gray-700 mb-1">Aucune note</h4>
+            <p className="text-sm text-gray-500">
+              Ajoutez votre première note pour documenter vos optimisations.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {[...project.notes].reverse().map((note) => {
+              const date = new Date(note.timestamp);
+              const isToday = date.toDateString() === new Date().toDateString();
+              
+              return (
+                <div key={note.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                        📝
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          {date.toLocaleDateString('fr-FR', { 
+                            weekday: 'long',
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric'
+                          })}
                         </div>
-                      ))}
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          {isToday && (
+                            <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              AUJOURD'HUI
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
+                    <button
+                      onClick={() => {
+                        if (confirm("Supprimer cette note ?")) {
+                          const updatedNotes = project.notes?.filter(n => n.id !== note.id) || [];
+                          onChange({
+                            ...project,
+                            notes: updatedNotes,
+                            updatedAt: new Date().toISOString()
+                          });
+                        }
+                      }}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {note.content}
+                    </p>
+                  </div>
                 </div>
-              )}
-
+              );
+            })}
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
             </div>
           </div>
         </div>
@@ -1883,35 +2029,31 @@ const handleOptimize = () => {
   );
 }
 
-// ====================================================================
-// 🎨 COMPOSANT HELPER: MetricCard
-// ====================================================================
-
-interface MetricCardProps {
-  title: string;
-  value: string;
-  subValue?: string;
-  icon: any;
-  accent?: "blue" | "indigo" | "emerald" | "red" | "purple";
-}
-
-function MetricCard({ title, value, subValue, icon: Icon, accent = "blue" }: MetricCardProps) {
-  const colors = {
-    blue: "from-blue-50 to-cyan-50 border-blue-200 text-blue-600",
-    indigo: "from-indigo-50 to-purple-50 border-indigo-200 text-indigo-600",
-    emerald: "from-emerald-50 to-teal-50 border-emerald-200 text-emerald-600",
-    red: "from-red-50 to-orange-50 border-red-200 text-red-600",
-    purple: "from-purple-50 to-pink-50 border-purple-200 text-purple-600"
-  };
-
+function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: string, value: string, subValue?: string, accent: "indigo" | "emerald" | "red", icon: any }) {
   return (
-    <div className={cn("bg-gradient-to-br rounded-2xl p-6 border shadow-sm", colors[accent])}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="text-sm font-medium text-gray-600 uppercase tracking-wider">{title}</div>
-        <Icon className="w-5 h-5 opacity-60" />
+    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[110px]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{title}</div>
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center",
+          accent === "indigo" ? "bg-blue-50 text-blue-600" :
+          accent === "emerald" ? "bg-emerald-50 text-emerald-600" :
+          "bg-red-50 text-red-600"
+        )}>
+          <Icon className="w-4 h-4" />
+        </div>
       </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
-      {subValue && <div className="text-sm text-gray-600 mt-2">{subValue}</div>}
+      <div>
+        <div className="text-2xl font-black text-gray-900">{value}</div>
+        {subValue && (
+          <div className={cn("text-xs font-bold mt-1.5 flex items-center gap-1", 
+            accent === "emerald" ? "text-emerald-500" : 
+            accent === "red" ? "text-red-500" : "text-gray-500"
+          )}>
+            {subValue}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
