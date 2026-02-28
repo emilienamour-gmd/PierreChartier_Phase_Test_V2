@@ -192,8 +192,10 @@ export function Sidebar({
                               <TrendingUp className="w-3 h-3" />
                               <span>{kpis.avgCpmRevenue.toFixed(2)}</span>
                             </div>
-                            {/* 🎯 NOUVEAU : KPI Objectif moyen */}
-                            <div className="flex items-center gap-1 col-span-2">
+                            {/* Colonne vide pour aligner le KPI objectif sous le CPM */}
+                            <div></div>
+                            {/* 🎯 KPI Objectif moyen - aligné sous le CPM */}
+                            <div className="flex items-center gap-1">
                               <Target className="w-3 h-3" />
                               <span>{kpis.targetKpi.toFixed(2)} {kpis.kpiType}</span>
                             </div>
