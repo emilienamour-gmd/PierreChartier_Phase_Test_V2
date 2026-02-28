@@ -1,9 +1,6 @@
-import { PortfolioOverview } from "./components/PortfolioOverview";
 import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { CockpitYield } from "./components/CockpitYield";
-import { CampaignTracking } from "./components/CampaignTracking";
-import { Insights } from "./components/Insights";
 import { OptimizationCycle } from "./components/OptimizationCycle";
 import { Portfolio } from "./components/Portfolio";
 import { MarketWatch } from "./components/MarketWatch";
@@ -64,8 +61,6 @@ export default function App() {
 
   const tabTitles: Record<string, string> = {
     cockpit: "Dashboard",
-    tracking: "Suivi Campagne",
-    insights: "Insights",
     cycle: "Cycle des Optimisations",
     portfolio: "Portfolio & Performance",
     market: "Market Watch",
@@ -125,17 +120,6 @@ export default function App() {
 
         <main className="flex-1 overflow-hidden">
           {activeTab === "cockpit" && <CockpitYield project={activeProject} onChange={setCurrentProject} />}
-          {activeTab === "tracking" && <CampaignTracking project={activeProject} onChange={setCurrentProject} />}
-          {activeTab === "insights" && <Insights project={activeProject} />}
-          {activeTab === "portfolio" && (
-    <PortfolioOverview 
-      projects={projects}
-      onSelectProject={(id) => {
-        loadProject(id);
-        setActiveTab("cockpit");
-      }}
-    />
-  )}
           {activeTab === "cycle" && <OptimizationCycle project={activeProject} />}
           {activeTab === "portfolio" && <Portfolio projects={projects} />}
           {activeTab === "market" && <MarketWatch currentCost={activeProject.cpmCostActuel} />}
