@@ -30,9 +30,10 @@ interface SidebarProps {
   user: UserProfile;
 }
 
+// ✅ MODIFICATION 1 : Ordre inversé - "tracking" (Suivi Campagne) AVANT "cockpit" (Cockpit Yield)
 const NAV_ITEMS = [
-  { id: "cockpit", label: "Cockpit Yield", icon: LayoutDashboard },
   { id: "tracking", label: "Suivi Campagne", icon: Calendar },
+  { id: "cockpit", label: "Cockpit Yield", icon: LayoutDashboard },
   { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "cycle", label: "Cycle des Optimisations", icon: RefreshCw },
   { id: "portfolio", label: "Portfolio & Performance", icon: Briefcase },
@@ -62,27 +63,12 @@ export function Sidebar({
       </div>
 
       <div className="px-4 py-2 flex-1 overflow-y-auto">
-        <div className="mb-8">
+        {/* ✅ MODIFICATION 2 : Section MAIN MENU déplacée en haut */}
+        <div className="mb-4">
           <div className="text-xs font-semibold text-gray-400 mb-3 px-3 uppercase tracking-wider">Main Menu</div>
-          <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                  activeTab === item.id
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
         </div>
 
+        {/* ✅ SECTION CAMPAGNES maintenant en haut, juste après MAIN MENU */}
         {(activeTab === "cockpit" || activeTab === "tracking" || activeTab === "insights") && (
           <div className="mb-8">
             {/* Header Campagnes avec bouton déroulant */}
@@ -162,6 +148,27 @@ export function Sidebar({
             </div>
           </div>
         )}
+
+        {/* Navigation principale - maintenant APRÈS les campagnes */}
+        <div className="mb-8">
+          <nav className="space-y-1">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                  activeTab === item.id
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
       
       <div className="p-4 border-t border-gray-200 space-y-1">
