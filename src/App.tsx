@@ -12,11 +12,12 @@ import { IntroVideo } from "./components/IntroVideo";
 import { useProjectStore } from "./store/useProjectStore";
 import { useUserStore } from "./store/useUserStore";
 import { DEFAULT_PROJECT } from "./types";
-import { Search, Bell, Layout, LogOut } from "lucide-react";
+import { Search, Bell, Layout, LogOut, ChevronDown, Plus } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
   const [showIntro, setShowIntro] = useState(true);
+  const [showCampaignDropdown, setShowCampaignDropdown] = useState(false);
 
   const { user: storeUser, isLoading, logout } = useUserStore();
   const [localUser, setLocalUser] = useState(storeUser);
@@ -91,10 +92,103 @@ export default function App() {
       
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center text-sm text-gray-500">
-            <span className="text-gray-400">Dashboard</span>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900 font-medium">{tabTitles[activeTab]}</span>
+          <div className="flex items-center gap-4">
+            {/* Breadcrumb */}
+            <div className="flex items-center text-sm text-gray-500">
+              <span className="text-gray-400">Dashboard</span>
+              <span className="mx-2">/</span>
+              <span className="text-gray-900 font-medium">{tabTitles[activeTab]}</span>
+            </div>
+
+            {/* 🎯 SÉLECTEUR DE CAMPAGNE */}
+            <div className="relative">
+              <button
+                onClick={() => setShowCampaignDropdown(!showCampaignDropdown)}
+                className="flex items-center gap-3 px-4 py-2 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-400 transition-colors min-w-[300px]"
+              >
+                <span className="flex-1 text-left text-sm font-medium text-gray-700 truncate">
+                  {currentProject ? currentProject.name : "Sélectionner une campagne"}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showCampaignDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown des campagnes */}
+              {showCampaignDropdown && (
+                <>
+                  {/* Overlay pour fermer le dropdown */}
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowCampaignDropdown(false)}
+                  />
+                  
+                  <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 max-h-96 overflow-y-auto">
+                    {/* Bouton "Nouvelle Campagne" */}
+                    <button
+                      onClick={() => {
+                        createNewProject();
+                        setShowCampaignDropdown(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 border-b border-gray-100 transition-colors"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>Nouvelle Campagne</span>
+                    </button>
+
+                    {/* Liste des campagnes */}
+                    {projects.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        Aucune campagne sauvegardée
+                      </div>
+                    ) : (
+                      <div className="py-2">
+                        {projects.map((project) => {
+                          const isActive = currentProject?.id === project.id;
+                          
+                          // Calculer les KPIs
+                          let margin = 0;
+                          if (project.inputMode === "CPM Cost") {
+                            if (project.cpmRevenueActual > 0) {
+                              margin = ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100;
+                            }
+                          } else {
+                            margin = project.margeInput;
+                          }
+
+                          return (
+                            <button
+                              key={project.id}
+                              onClick={() => {
+                                loadProject(project.id);
+                                setShowCampaignDropdown(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
+                                isActive ? 'bg-blue-50' : ''
+                              }`}
+                            >
+                              <div className="flex-1 text-left">
+                                <div className={`font-bold ${isActive ? 'text-blue-600' : 'text-gray-900'}`}>
+                                  {project.name}
+                                </div>
+                                {project.dailyEntries && project.dailyEntries.length > 0 && (
+                                  <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                    <span>{margin.toFixed(1)}% marge</span>
+                                    <span>•</span>
+                                    <span>{project.budgetSpent.toFixed(0)} {project.currency.includes("EUR") ? "€" : "$"}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {isActive && (
+                                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-6">
