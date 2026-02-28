@@ -1211,30 +1211,32 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             : `Pour maximiser le volume, montez votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (+${option2_bidAdjustmentPct.toFixed(1)}%)`;
                         }
                         
-                        // 🔥 CALCUL VOLATILITÉ OPTION 2
+                        // 🔥 CALCUL VOLATILITÉ OPTION 2 - VERSION RÉDUITE (sans pari créative)
                         const bidChangeAmplitude = Math.abs(option2_bidAdjustmentPct) / 100;
                         let volatilityMultiplier = 1.0;
                         
+                        // Volatilité RÉDUITE car on ne parie plus sur la créative
+                        // Fourchette = uniquement incertitude marché (compétition, volatilité)
                         if (bidChangeAmplitude > 0.50) {
-                          volatilityMultiplier = 2.2;
+                          volatilityMultiplier = 1.4;  // Au lieu de 2.2
                         } else if (bidChangeAmplitude > 0.30) {
-                          volatilityMultiplier = 1.8;
+                          volatilityMultiplier = 1.3;  // Au lieu de 1.8
                         } else if (bidChangeAmplitude > 0.20) {
-                          volatilityMultiplier = 1.5;
+                          volatilityMultiplier = 1.2;  // Au lieu de 1.5
                         } else if (bidChangeAmplitude > 0.10) {
-                          volatilityMultiplier = 1.3;
+                          volatilityMultiplier = 1.15; // Au lieu de 1.3
                         }
                         
-                        // Niveau du nouveau bid
+                        // Niveau du nouveau bid (impact réduit aussi)
                         const avgMarketCpm = 3.0;
                         const option2_bidRatio = option2_cpmCost / avgMarketCpm;
                         
                         if (option2_bidRatio < 0.3) {
-                          volatilityMultiplier *= 1.5;
+                          volatilityMultiplier *= 1.2;  // Au lieu de 1.5
                         } else if (option2_bidRatio < 0.5) {
-                          volatilityMultiplier *= 1.3;
+                          volatilityMultiplier *= 1.15; // Au lieu de 1.3
                         } else if (option2_bidRatio < 0.7) {
-                          volatilityMultiplier *= 1.2;
+                          volatilityMultiplier *= 1.1;  // Au lieu de 1.2
                         }
                         
                         const isHighBidChange = Math.abs(option2_bidAdjustmentPct) > 20;
@@ -1261,29 +1263,33 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         option1_kpi_optimistic = option1_center - option1_tightRange;
                         option1_kpi_pessimistic = option1_center + option1_tightRange;
                         
-                        // 🎯 BID IMPACT pour Option 2
+                        // 🎯 BID IMPACT pour Option 2 - PUREMENT MATHÉMATIQUE (sans pari créative)
                         const bidImpactDirection = isFin ? 1 : -1;
                         const bidImpactMagnitude = Math.abs(option2_bidAdjustmentPct) / 100;
-                        const bidImpact = bidImpactMagnitude * coeffs.bidImpactFactor * bidImpactDirection;
                         
-                        // OPTION 2 : Base mathématique + bid impact + volatilité élargie
+                        // Impact CERTAIN du changement d'inventaire
+                        // Pas de "pari créative", juste la réalité du shift d'inventaire
+                        const inventoryShiftImpact = bidImpactMagnitude * coeffs.bidImpactFactor * bidImpactDirection;
+                        
+                        // OPTION 2 : Calcul déterministe
+                        // 1. Impact marge (mathématique)
                         const option2_center_base = project.actualKpi * baseMarginImpact;
                         
-                        // Décaler le centre à cause du bid (seulement si bid change significativement)
-                        const centerShift = isIncreasingMargin 
-                          ? project.actualKpi * bidImpact * 0.5  // Bid baisse → KPI empire un peu
-                          : project.actualKpi * bidImpact * -0.8; // Bid monte → KPI améliore beaucoup
+                        // 2. Impact inventaire (CERTAIN, pas optimiste/pessimiste)
+                        const inventoryImpact = project.actualKpi * inventoryShiftImpact;
                         
-                        const option2_center = option2_center_base + centerShift;
+                        // 3. Centre = impact marge + impact inventaire
+                        const option2_center = option2_center_base + inventoryImpact;
                         
-                        // Fourchette de base (sans volatilité supplémentaire)
-                        const baseRange = project.actualKpi * (coeffs.volatility + coeffs.competition);
+                        // 🔥 FOURCHETTE RÉDUITE : uniquement incertitude marché (compétition, volatilité)
+                        // Plus de "créative forte vs faible", juste l'incertitude normale du programmatique
+                        const marketUncertainty = project.actualKpi * (coeffs.volatility + coeffs.competition);
                         
-                        // Fourchette ÉLARGIE par volatilité d'inventaire
-                        const option2_expandedRange = baseRange * volatilityMultiplier;
+                        // Volatilité légèrement augmentée si gros changement de bid (marché imprévisible)
+                        const adjustedVolatility = marketUncertainty * Math.min(volatilityMultiplier, 1.4);
                         
-                        option2_kpi_optimistic = option2_center - (option2_expandedRange / 2);
-                        option2_kpi_pessimistic = option2_center + (option2_expandedRange / 2);
+                        option2_kpi_optimistic = option2_center - (adjustedVolatility / 2);
+                        option2_kpi_pessimistic = option2_center + (adjustedVolatility / 2);
                         
                         // Vérifier si objectif atteint
                         const targetKpi = project.targetKpi;
@@ -1304,106 +1310,106 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                           const explanations: any = {
                             CPCV: {
                               up: { 
-                                impact: "Marge monte → Bid baisse → Inventaire moins premium. Completion rate CHUTE car shift vers inventaire low-tier (outstream, banner vidéo). CPCV grimpe.",
-                                option2: "Baisser modérément permet de rester sur mid-tier acceptable. Évite le trash total.",
-                                range: "Optimiste = Créa FORTE compense. Pessimiste = Shift massif low-tier, completion s'effondre."
+                                impact: "Marge monte → Bid baisse → Inventaire moins premium. Completion rate CHUTE (shift mathématique vers outstream, banner vidéo). Impact CERTAIN : CPCV grimpe.",
+                                option2: "Baisser modérément permet de rester sur mid-tier. Limite la dégradation.",
+                                range: "Fourchette = incertitude marché (compétition, volatilité). PAS de pari créative."
                               },
                               down: { 
-                                impact: "Marge baisse → Bid monte → Accès inventaire PREMIUM (in-stream, player grand format). Completion rate EXPLOSE → CPCV CHUTE.",
-                                option2: "Monter agressivement = dominer l'inventaire premium. ROI maximal.",
-                                range: "Optimiste = Premium parfait. Pessimiste = Compétition mange une partie des gains."
+                                impact: "Marge baisse → Bid monte → Accès inventaire PREMIUM (in-stream, player grand format). Completion rate MONTE (shift mathématique certain). CPCV BAISSE.",
+                                option2: "Monter agressivement = dominer l'inventaire premium. Effet garanti.",
+                                range: "Fourchette = incertitude marché normale. Impact inventaire est CERTAIN."
                               }
                             },
                             CPA: {
                               up: { 
                                 impact: isLongAttribution 
-                                  ? `🔥 DANGER EXTRÊME (J+${attrClick}) : Fenêtre LONGUE ${attrClick} jours. Perte reach = MOINS d'impressions sur toute la fenêtre → SORTIE fenêtre attribution → Conversions DISPARAISSENT → CPA EXPLOSE x${attributionFactor.toFixed(1)} !`
-                                  : `🔥 CRITIQUE : Reach baisse → MOINS impressions dans fenêtre J+${attrClick} clic / J+${attrView} view → Conversions chutent → CPA MONTE.`,
-                                option2: `Ajuster bid maintient VOLUME CRITIQUE. Chirurgical pour ${attrClick} jours.`,
-                                range: "Optimiste = Pixel ultra-performant compense. Pessimiste = PERTE CATASTROPHIQUE de conversions."
+                                  ? `🔥 CRITIQUE (J+${attrClick}) : Reach baisse → MOINS d'impressions sur toute la fenêtre → Conversions BAISSENT mathématiquement (reach = volume). CPA MONTE.`
+                                  : `🔥 CRITIQUE : Reach baisse → MOINS impressions dans fenêtre J+${attrClick} clic / J+${attrView} view → Conversions baissent mathématiquement. CPA MONTE.`,
+                                option2: `Ajuster bid maintient VOLUME. Impact mathématique prévisible pour ${attrClick} jours.`,
+                                range: "Fourchette = volatilité compétition (enchères fluctuantes). Pas de pari créative."
                               },
                               down: { 
                                 impact: isLongAttribution 
-                                  ? `🚀 OPPORTUNITÉ MAXIMALE (J+${attrClick}) : Reach MASSIF ${attrClick} jours → Multi-touch sur TOUTE la fenêtre → EXPLOSION conversions → CPA S'EFFONDRE x${attributionFactor.toFixed(1)} !`
-                                  : `🚀 BOOST : Reach ↑ → Plus impressions fenêtre J+${attrClick} → Multi-touch maximisé → Conversions ↑ → CPA baisse.`,
-                                option2: "Baisse marge + boost bid = MULTIPLICATEUR conversions. Immédiat et massif.",
-                                range: "Optimiste = JACKPOT. Pessimiste = Coût mange une partie des gains (mais toujours rentable)."
+                                  ? `🚀 OPPORTUNITÉ (J+${attrClick}) : Reach MASSIF ${attrClick} jours → Multi-touch sur TOUTE fenêtre → Conversions MONTENT mathématiquement. CPA BAISSE.`
+                                  : `🚀 BOOST : Reach ↑ → Plus impressions fenêtre J+${attrClick} → Multi-touch maximisé → Conversions ↑ mathématiquement. CPA baisse.`,
+                                option2: "Baisse marge + boost bid = MULTIPLICATEUR conversions. Effet déterministe.",
+                                range: "Fourchette = volatilité marché (niveau compétition variable). Impact reach CERTAIN."
                               }
                             },
                             CPC: {
                               up: { 
-                                impact: "CPC = marché ULTRA-compétitif. Baisser bid = perte positions clés → Résiduel low-CTR → CPC EXPLOSE (paradoxe : moins de clics premium).",
-                                option2: "Modéré = rester mid-funnel. Éviter le bannissement total.",
-                                range: "Optimiste = Créa cliquable sauve. Pessimiste = Clickbait trash domine."
+                                impact: "Baisser bid = perte positions premium → CTR BAISSE (mathématique) → Moins clics pour même coût → CPC MONTE.",
+                                option2: "Modéré = rester mid-funnel. Éviter l'effondrement total.",
+                                range: "Fourchette = volatilité marché (compétition variable). Pas de pari créative."
                               },
                               down: { 
-                                impact: "Monter bid = positions PREMIUM (above-fold, native, high-intent) → CTR ↑ → Plus de clics pour même coût → CPC CHUTE.",
-                                option2: "Agressif = ÉCRASER la compétition. Domination totale.",
-                                range: "Optimiste = Domination premium. Pessimiste = Guerre de prix (mais on gagne quand même)."
+                                impact: "Monter bid = positions PREMIUM (above-fold, native) → CTR ↑ (mathématique) → Plus clics même coût → CPC BAISSE.",
+                                option2: "Agressif = domination premium. Effet garanti.",
+                                range: "Fourchette = incertitude compétition. Impact positions CERTAIN."
                               }
                             },
                             CPV: {
                               up: { 
                                 impact: isLongAttribution 
-                                  ? `🔥 EXTRÊME (J+${attrClick}) : Shift MASSIF vers inventaire LOW-INTENT → Bot/fraud dominant → Visites poubelle (bounce 95%) → CPV grimpe !`
-                                  : `🔥 QUALITÉ S'EFFONDRE : Moins placements contextuels → LOW-INTENT → Visites trash → CPV monte.`,
-                                option2: `Ajuster = mid-tier QUALIFIÉ. QUALITÉ > QUANTITÉ. 100 visites qualifiées > 500 poubelle.`,
-                                range: "Optimiste = Landing page ultra-performante convertit même low-intent. Pessimiste = LOW-INTENT total, bounce 90%, fraud."
+                                  ? `🔥 CRITIQUE (J+${attrClick}) : Shift vers LOW-INTENT → Visites trash (bounce élevé) CERTAIN → CPV grimpe.`
+                                  : `🔥 QUALITÉ BAISSE : Moins placements contextuels → LOW-INTENT mathématique → CPV monte.`,
+                                option2: `Ajuster = mid-tier QUALIFIÉ. Impact déterministe.`,
+                                range: "Fourchette = volatilité marché (niveau fraud variable). Pas de pari créative."
                               },
                               down: { 
                                 impact: isLongAttribution 
-                                  ? `🚀 OPPORTUNITÉ MAXIMALE (J+${attrClick}) : Premium intent-based inventory → ULTRA-QUALIFIÉ massif → CPV S'EFFONDRE + qualité EXPLOSE !`
-                                  : `🚀 QUALITÉ EXPLOSE : Meilleur contextuel → ULTRA-QUALIFIÉ → Engagement max → CPV baisse.`,
-                                option2: "Baisse + boost = volume QUALIFIÉ max. Résultats immédiats.",
-                                range: "Optimiste = ULTRA-QUALIFIÉ, +50% conversion post-visite. Pessimiste = Volume énorme, qualité moyenne."
+                                  ? `🚀 OPPORTUNITÉ (J+${attrClick}) : Premium intent-based → ULTRA-QUALIFIÉ mathématiquement → CPV BAISSE.`
+                                  : `🚀 QUALITÉ MONTE : Meilleur contextuel → ULTRA-QUALIFIÉ certain → CPV baisse.`,
+                                option2: "Baisse + boost = volume QUALIFIÉ. Effet garanti.",
+                                range: "Fourchette = volatilité marché normale. Impact qualité CERTAIN."
                               }
                             },
                             CPM: {
                               up: { 
-                                impact: "CPM dépend du bid ET du fill rate. Baisser bid = accès inventaire RÉSIDUEL → Fill rate CHUTE → CPM peut monter (paradoxe des restes).",
-                                option2: "Ajuster permet de rester sur inventaire standard. Équilibre.",
-                                range: "Optimiste = Inventaire moyen stable. Pessimiste = Inventaire TRASH (remnant)."
+                                impact: "Baisser bid = inventaire RÉSIDUEL → Fill rate CHUTE → CPM peut monter (paradoxe résiduel).",
+                                option2: "Ajuster = inventaire standard. Impact prévisible.",
+                                range: "Fourchette = volatilité fill rate (inventaire variable)."
                               },
                               down: { 
                                 impact: "Monter bid = inventaire PREMIUM → Fill rate ÉLEVÉ → CPM baisse (économies d'échelle).",
-                                option2: "Hausser = premium, fill rate max.",
-                                range: "Optimiste = Premium parfait. Pessimiste = Compétition."
+                                option2: "Hausser = premium, fill rate max. Effet garanti.",
+                                range: "Fourchette = volatilité marché normale."
                               }
                             },
                             CTR: {
                               up: { 
-                                impact: "CTR dépend surtout de la CRÉATIVE. Bid plus bas = visibilité réduite → Baisse LÉGÈRE.",
+                                impact: "Bid plus bas = visibilité réduite (below-fold) → CTR BAISSE (mathématique).",
                                 option2: "Éviter l'invisible total.",
-                                range: "Optimiste = Créa forte. Pessimiste = Créa médiocre."
+                                range: "Fourchette = volatilité positions (enchères variables)."
                               },
                               down: { 
-                                impact: "Bid plus haut = visibilité ↑ (above-fold) → CTR ↑. Effet modéré.",
-                                option2: "Hausser = premium.",
-                                range: "Optimiste = Combo créa + premium. Pessimiste = Effet marginal."
+                                impact: "Bid plus haut = visibilité ↑ (above-fold) → CTR ↑ (mathématique).",
+                                option2: "Hausser = premium. Effet certain.",
+                                range: "Fourchette = volatilité marché normale."
                               }
                             },
                             VTR: {
                               up: { 
-                                impact: "Moins bid = shift OUTSTREAM low → VTR chute.",
-                                option2: "Ajuster = in-stream mid.",
-                                range: "Optimiste = Vidéo engageante. Pessimiste = Outstream trash."
+                                impact: "Moins bid = shift OUTSTREAM low → VTR chute (mathématique).",
+                                option2: "Ajuster = in-stream mid. Impact prévisible.",
+                                range: "Fourchette = volatilité inventaire."
                               },
                               down: { 
-                                impact: "Plus bid = IN-STREAM premium → VTR ↑.",
-                                option2: "Hausser = in-stream.",
-                                range: "Optimiste = Premium parfait. Pessimiste = Compétition."
+                                impact: "Plus bid = IN-STREAM premium → VTR ↑ (mathématique).",
+                                option2: "Hausser = in-stream. Effet garanti.",
+                                range: "Fourchette = volatilité marché normale."
                               }
                             },
                             Viewability: {
                               up: { 
                                 impact: "Viewability dépend peu du bid (technique). Impact FAIBLE.",
                                 option2: "Minimal.",
-                                range: "Optimiste = Stable. Pessimiste = Léger shift."
+                                range: "Fourchette = stabilité technique."
                               },
                               down: { 
                                 impact: "Plus bid = léger premium → Impact MARGINAL.",
                                 option2: "Un peu.",
-                                range: "Optimiste = Marginal. Pessimiste = Quasi rien."
+                                range: "Fourchette = quasi nulle."
                               }
                             }
                           };
@@ -1435,7 +1441,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 </div>
                                 <p className="text-sm text-amber-700">
                                   Option 2 propose un changement de bid de {option2_bidAdjustmentPct > 0 ? '+' : ''}{option2_bidAdjustmentPct.toFixed(1)}% 
-                                  → Fourchette ÉLARGIE ×{volatilityMultiplier.toFixed(2)}
+                                  → Fourchette ÉLARGIE ×{volatilityMultiplier.toFixed(2)} (incertitude marché : compétition variable, volatilité)
                                 </p>
                               </div>
                             )}
@@ -1526,7 +1532,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
                                   <div>
                                     <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
-                                    <p className="text-xs text-pink-600">{option2_respectsCap ? "Respecte Cap" : "Optimal"}</p>
+                                    <p className="text-xs text-pink-600">{option2_respectsCap ? "Respecte Cap" : "Calcul déterministe"}</p>
                                   </div>
                                 </div>
                                 
@@ -1563,7 +1569,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-lg p-4">
                                     <div className="text-xs font-bold text-emerald-900 mb-3 flex items-center justify-between">
                                       <span>{project.kpiType} Projeté</span>
-                                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full">FOURCHETTE</span>
+                                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full">DÉTERMINISTE</span>
                                     </div>
                                     
                                     <div className={cn("mb-2 p-2 rounded border", option2_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300")}>
@@ -1588,7 +1594,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     
                                     <div className="mt-2 pt-2 border-t border-emerald-200">
                                       <div className="text-[10px] text-emerald-700 font-bold">
-                                        ⚠️ Volatilité ×{volatilityMultiplier.toFixed(2)} (changement inventaire)
+                                        ⚙️ Volatilité ×{volatilityMultiplier.toFixed(2)} (incertitude marché : compétition, volatilité)
                                       </div>
                                     </div>
                                     
@@ -1626,15 +1632,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     </div>
                                     
                                     <div className="bg-yellow-50/60 rounded-lg p-3 border border-yellow-200">
-                                      <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette</p>
+                                      <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette (Incertitude Marché)</p>
                                       <p className="text-xs leading-relaxed">{kpiExplanations.range}</p>
                                     </div>
                                     
                                     <div className="bg-purple-50/60 rounded-lg p-3 border border-purple-200">
                                       <p className="font-bold mb-1.5 text-purple-900">📐 Comparaison Volatilité</p>
                                       <p className="text-xs leading-relaxed">
-                                        <strong>Option 1 (Bid Stable):</strong> Range = {fmtKpi(option1_range)} <strong className="text-purple-700">(±8% seulement !)</strong> → Bid INCHANGÉ = MÊME inventaire = Impact purement mathématique, pas de volatilité.<br/>
-                                        <strong>Option 2 (Bid Ajusté):</strong> Range = {fmtKpi(option2_range)} <strong className="text-purple-700">({((option2_range / option1_range) * 100).toFixed(0)}% plus large !)</strong> → Bid change de {option2_bidAdjustmentPct > 0 ? '+' : ''}{option2_bidAdjustmentPct.toFixed(1)}% = NOUVEL inventaire = RÉSULTATS VOLATILES.
+                                        <strong>Option 1 (Bid Stable):</strong> Range = {fmtKpi(option1_range)} <strong className="text-purple-700">(±8% seulement !)</strong> → Bid INCHANGÉ = MÊME inventaire = Impact purement mathématique.<br/>
+                                        <strong>Option 2 (Bid Ajusté):</strong> Range = {fmtKpi(option2_range)} <strong className="text-purple-700">({((option2_range / option1_range) * 100).toFixed(0)}% plus large)</strong> → Bid change de {option2_bidAdjustmentPct > 0 ? '+' : ''}{option2_bidAdjustmentPct.toFixed(1)}% = NOUVEL inventaire + incertitude marché (compétition variable, volatilité). Impact inventaire CERTAIN, fourchette = volatilité marché uniquement.
                                       </p>
                                     </div>
                                   </div>
