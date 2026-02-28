@@ -33,8 +33,33 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [attrView, setAttrView] = useState(1);
 
   useEffect(() => {
-    setUplift(project.uplift ?? 3.0);
-  }, [project.id]);
+    // 🔥 NOUVEAU : Caler le slider sur la dernière marge des dailyEntries
+    if (project.dailyEntries && project.dailyEntries.length > 0) {
+      // Calculer la marge actuelle du projet
+      let projectCurrentMargin = 0;
+      if (project.inputMode === "CPM Cost") {
+        if (project.cpmRevenueActual > 0) {
+          projectCurrentMargin = ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100;
+        }
+      } else {
+        projectCurrentMargin = project.margeInput;
+      }
+      
+      // Trier par date décroissante et prendre la plus récente
+      const sortedEntries = [...project.dailyEntries].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const lastEntry = sortedEntries[0];
+      const lastMargin = lastEntry.marginPct || projectCurrentMargin;
+      
+      // Calculer l'uplift par rapport à la marge actuelle
+      const calculatedUplift = lastMargin - projectCurrentMargin;
+      setUplift(calculatedUplift);
+    } else {
+      // Sinon, utiliser project.uplift ou 3.0 par défaut
+      setUplift(project.uplift ?? 3.0);
+    }
+  }, [project.id, project.dailyEntries, project.inputMode, project.cpmRevenueActual, project.cpmCostActuel, project.margeInput]);
 
   useEffect(() => {
     if (!project.updatedAt || project.budgetTotal === 0 || project.durationDays === 0) return;
