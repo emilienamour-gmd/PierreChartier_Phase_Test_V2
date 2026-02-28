@@ -2394,13 +2394,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   );
 }
 
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function MetricCard({ title, value, subValue, accent, icon: Icon }: { title: string, value: string, subValue?: string, accent: "indigo" | "emerald" | "red", icon: any }) {
   return (
