@@ -26,7 +26,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
   const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [proposedOptimizations, setProposedOptimizations] = useState<LineItem[] | null>(null);
+  const [proposedOptimizations, setProposedOptimizations] = useState<OptimizationItem[] | null>(null);
   const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
   const [respectCpmCap, setRespectCpmCap] = useState<boolean>(true);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
@@ -448,7 +448,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
   const totalScore = unlockedItems.reduce((acc, li) => acc + (li.allocationScore || 0), 0);
   
-  const finalItems: LineItem[] = itemsWithScore.map(li => {
+  const finalItems: OptimizationItem[] = itemsWithScore.map(li => {
     let finalSpend = li.spend || 0;
     
     if (!lockedLines.has(li.id)) {
@@ -470,12 +470,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     }
     
     return {
+      ...li,
       id: li.id,
       name: li.name,
       spend: Number(finalSpend.toFixed(2)),
       cpmRevenue: Number((li.newCpmRevenue || li.cpmRevenue).toFixed(2)),
       marginPct: Number((li.newMargin || li.marginPct).toFixed(2)),
-      kpiActual: li.kpiActual
+      kpiActual: li.kpiActual,
+      action: li.action,
+      perfCategory: li.perfCategory,
+      perfRatio: li.perfRatio
     };
   });
   
@@ -1320,6 +1324,182 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   </p>
                                 )}
                             </div>
+                        </div>
+                      </div>
+
+                      {/* NOUVEAU TABLEAU : ACTIONS DSP DÉTAILLÉES */}
+                      <div className="mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-2xl p-6 shadow-lg">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-indigo-200">
+                          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                            <Activity className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-black text-indigo-900">🎯 Plan d'Action DSP</h3>
+                            <p className="text-sm text-indigo-600 font-medium">Actions concrètes à effectuer dans votre DSP pour chaque ligne</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          {proposedOptimizations.map((opt) => {
+                            const original = project.lineItems.find(o => o.id === opt.id);
+                            if (!original) return null;
+                            
+                            const budgetChange = opt.spend - original.spend;
+                            const budgetChangePct = original.spend > 0 ? (budgetChange / original.spend) * 100 : 0;
+                            const cpmChange = opt.cpmRevenue - original.cpmRevenue;
+                            const cpmChangePct = original.cpmRevenue > 0 ? (cpmChange / original.cpmRevenue) * 100 : 0;
+                            const marginChange = opt.marginPct - original.marginPct;
+                            
+                            // Déterminer la couleur selon la catégorie
+                            const categoryColor = 
+                              opt.perfCategory === "star" ? "border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50" :
+                              opt.perfCategory === "good" ? "border-emerald-400 bg-gradient-to-r from-emerald-50 to-green-50" :
+                              opt.perfCategory === "ok" ? "border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50" :
+                              opt.perfCategory === "underperforming" ? "border-orange-400 bg-gradient-to-r from-orange-50 to-amber-50" :
+                              "border-red-400 bg-gradient-to-r from-red-50 to-rose-50";
+                            
+                            const categoryIcon = 
+                              opt.perfCategory === "star" ? "⭐" :
+                              opt.perfCategory === "good" ? "✅" :
+                              opt.perfCategory === "ok" ? "✓" :
+                              opt.perfCategory === "underperforming" ? "⚠️" :
+                              "💀";
+                            
+                            return (
+                              <div key={opt.id} className={`border-2 rounded-xl p-5 ${categoryColor} shadow-sm`}>
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="text-3xl">{categoryIcon}</div>
+                                    <div>
+                                      <h4 className="font-black text-gray-900 text-lg">{opt.name}</h4>
+                                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">{opt.action || "Aucune action"}</p>
+                                    </div>
+                                  </div>
+                                  {lockedLines.has(opt.id) && (
+                                    <div className="bg-amber-100 border border-amber-300 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                                      <Lock className="w-3 h-3" /> Verrouillée
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                  {/* Budget quotidien */}
+                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-500 mb-1">💰 Budget Quotidien</div>
+                                    <div className="flex items-baseline gap-2">
+                                      <span className="text-sm text-gray-600">{original.spend.toFixed(2)} {currSym}</span>
+                                      <span className="text-lg font-black text-gray-900">→</span>
+                                      <span className="text-lg font-black text-blue-600">{opt.spend.toFixed(2)} {currSym}</span>
+                                    </div>
+                                    <div className={`text-xs font-bold mt-1 ${budgetChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                      {budgetChange >= 0 ? '+' : ''}{budgetChange.toFixed(2)} {currSym} ({budgetChangePct >= 0 ? '+' : ''}{budgetChangePct.toFixed(1)}%)
+                                    </div>
+                                  </div>
+
+                                  {/* CPM Target */}
+                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-500 mb-1">🎯 CPM Revenue Target</div>
+                                    <div className="flex items-baseline gap-2">
+                                      <span className="text-sm text-gray-600">{original.cpmRevenue.toFixed(2)} {currSym}</span>
+                                      <span className="text-lg font-black text-gray-900">→</span>
+                                      <span className="text-lg font-black text-indigo-600">{opt.cpmRevenue.toFixed(2)} {currSym}</span>
+                                    </div>
+                                    <div className={`text-xs font-bold mt-1 ${cpmChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                      {cpmChange >= 0 ? '+' : ''}{cpmChange.toFixed(2)} {currSym} ({cpmChangePct >= 0 ? '+' : ''}{cpmChangePct.toFixed(1)}%)
+                                    </div>
+                                  </div>
+
+                                  {/* Marge */}
+                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-500 mb-1">📊 Marge Cible</div>
+                                    <div className="flex items-baseline gap-2">
+                                      <span className="text-sm text-gray-600">{original.marginPct.toFixed(1)}%</span>
+                                      <span className="text-lg font-black text-gray-900">→</span>
+                                      <span className="text-lg font-black text-emerald-600">{opt.marginPct.toFixed(1)}%</span>
+                                    </div>
+                                    <div className={`text-xs font-bold mt-1 ${marginChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                      {marginChange >= 0 ? '+' : ''}{marginChange.toFixed(1)} points
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Recommandations DSP */}
+                                <div className="bg-white/80 rounded-lg p-4 border-2 border-dashed border-gray-300">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                      <span className="text-white text-xs font-black">i</span>
+                                    </div>
+                                    <h5 className="font-black text-gray-900 text-sm">Actions à faire dans le DSP :</h5>
+                                  </div>
+                                  <div className="space-y-2 text-sm">
+                                    {/* Recommandation Budget */}
+                                    {Math.abs(budgetChangePct) > 5 && (
+                                      <div className="flex items-start gap-2">
+                                        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center shrink-0 mt-0.5">
+                                          <span className="text-blue-600 font-black text-xs">1</span>
+                                        </div>
+                                        <p className="text-gray-700">
+                                          <strong>Budget :</strong> {budgetChange > 0 ? 'Augmenter' : 'Réduire'} le budget quotidien à <strong className="text-blue-600">{opt.spend.toFixed(2)} {currSym}</strong>
+                                          {budgetChange > 0 
+                                            ? " pour profiter de la bonne performance"
+                                            : " pour limiter les pertes ou redistribuer vers d'autres lignes"}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Recommandation CPM */}
+                                    {Math.abs(cpmChangePct) > 2 && (
+                                      <div className="flex items-start gap-2">
+                                        <div className="w-5 h-5 bg-indigo-100 rounded flex items-center justify-center shrink-0 mt-0.5">
+                                          <span className="text-indigo-600 font-black text-xs">2</span>
+                                        </div>
+                                        <p className="text-gray-700">
+                                          <strong>CPM/Bid :</strong> Ajuster le CPM target ou le bid à <strong className="text-indigo-600">{opt.cpmRevenue.toFixed(2)} {currSym}</strong>
+                                          {cpmChange > 0 
+                                            ? " pour capturer plus de volume avec une marge supérieure"
+                                            : " pour améliorer la compétitivité et le KPI"}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Recommandation Marge */}
+                                    {Math.abs(marginChange) > 2 && (
+                                      <div className="flex items-start gap-2">
+                                        <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center shrink-0 mt-0.5">
+                                          <span className="text-emerald-600 font-black text-xs">3</span>
+                                        </div>
+                                        <p className="text-gray-700">
+                                          <strong>Marge :</strong> Viser une marge de <strong className="text-emerald-600">{opt.marginPct.toFixed(1)}%</strong>
+                                          {" ("}soit un CPM Cost de <strong>{(opt.cpmRevenue * (1 - opt.marginPct / 100)).toFixed(2)} {currSym}</strong>{")"}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Recommandation spéciale selon catégorie */}
+                                    {opt.perfCategory === "dead" && (
+                                      <div className="flex items-start gap-2 bg-red-50 -mx-2 -mb-2 p-3 rounded-b-lg border-t border-red-200 mt-3">
+                                        <div className="text-red-500 shrink-0">💀</div>
+                                        <p className="text-red-700 font-medium text-xs">
+                                          <strong>Attention :</strong> Ligne très sous-performante (KPI = 0 ou < 70% objectif). 
+                                          Envisager de <strong>mettre en pause</strong> si pas d'amélioration rapide.
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {opt.perfCategory === "star" && (
+                                      <div className="flex items-start gap-2 bg-yellow-50 -mx-2 -mb-2 p-3 rounded-b-lg border-t border-yellow-200 mt-3">
+                                        <div className="text-yellow-500 shrink-0">⭐</div>
+                                        <p className="text-yellow-800 font-medium text-xs">
+                                          <strong>Opportunité :</strong> Ligne star (> 150% objectif) ! 
+                                          Considérer de <strong>dupliquer cette stratégie</strong> sur d'autres campagnes ou inventaires similaires.
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
