@@ -2,12 +2,21 @@ import { useState, ChangeEvent, useEffect } from "react";
 import { ProjectData, LineItem, ProjectSnapshot, MarginPeriod, ProjectNote } from "../types";
 import { cn } from "../utils/cn";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3, TrendingUp as TrendingIcon, History } from "lucide-react";
+import { Settings, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Trash2, DollarSign, Percent, Target, ChevronLeft, ChevronRight, Upload, Wand2, ArrowRight, Lock, Unlock, Clock, MousePointer2, Activity, BarChart3 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface CockpitYieldProps {
   project: ProjectData;
   onChange: (project: ProjectData) => void;
+}
+
+// 🔧 INTERFACE TEMPORAIRE POUR L'OPTIMISATION
+interface OptimizationItem extends LineItem {
+  perfRatio?: number;
+  newMargin?: number;
+  newCpmRevenue?: number;
+  allocationScore?: number;
+  capAlignmentBonus?: number;
 }
 
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
@@ -249,7 +258,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const availableSpend = Math.max(0, totalSpend - lockedSpend);
   
   // ==== ÉTAPE 1 : CALCUL DES RATIOS DE PERFORMANCE ====
-  const scoredItems = project.lineItems.map(li => {
+  const scoredItems: OptimizationItem[] = project.lineItems.map(li => {
     const actual = li.kpiActual || 0;
     const target = project.targetKpi || 0.0001;
     
@@ -269,7 +278,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   });
   
   // ==== ÉTAPE 2 : OPTIMISATION SELON LE MODE ====
-  let optimizedItems: LineItem[] = [];
+  let optimizedItems: OptimizationItem[] = [];
   
   if (respectCpmCap) {
     // 🎯 MODE : RESPECTER LE CPM VENDU CAP (NOUVELLE LOGIQUE INTELLIGENTE)
@@ -296,7 +305,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       // --- 1. AJUSTEMENT DE LA MARGE ---
       if (isFin && li.perfRatio === 0) {
         newMargin = li.marginPct;
-      } else if (li.perfRatio < 1.0) {
+      } else if ((li.perfRatio || 0) < 1.0) {
         if (marginGoal === "increase") {
           newMargin = li.marginPct;
         } else {
@@ -304,11 +313,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         }
       } else {
         if (marginGoal === "increase") {
-          if (li.perfRatio >= 1.2) newMargin += 5;
-          else if (li.perfRatio >= 1.0) newMargin += 2;
+          if ((li.perfRatio || 0) >= 1.2) newMargin += 5;
+          else if ((li.perfRatio || 0) >= 1.0) newMargin += 2;
         } else if (marginGoal === "decrease") {
-          if (li.perfRatio >= 1.2) newMargin -= 2;
-          else if (li.perfRatio > 1.0) newMargin -= 5;
+          if ((li.perfRatio || 0) >= 1.2) newMargin -= 2;
+          else if ((li.perfRatio || 0) > 1.0) newMargin -= 5;
         }
       }
       
@@ -322,13 +331,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       if (marginGoal === "increase") {
         // Augmenter la marge : on veut se rapprocher du Cap
-        if (li.perfRatio >= 1.2) {
+        if ((li.perfRatio || 0) >= 1.2) {
           // Ligne très performante : elle peut aller jusqu'au Cap
           newCpmRevenue = Math.min(targetCpmRev * 1.0, li.cpmRevenue * 1.05);
-        } else if (li.perfRatio >= 1.0) {
+        } else if ((li.perfRatio || 0) >= 1.0) {
           // Ligne correcte : elle monte modérément vers le Cap
           newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 1.03);
-        } else if (li.perfRatio >= 0.8) {
+        } else if ((li.perfRatio || 0) >= 0.8) {
           // Ligne en difficulté : elle reste en dessous du Cap
           newCpmRevenue = Math.min(targetCpmRev * 0.85, li.cpmRevenue * 1.01);
         } else {
@@ -337,7 +346,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         }
       } else {
         // Baisser la marge : on baisse légèrement pour rester compétitif
-        if (li.perfRatio >= 1.0) {
+        if ((li.perfRatio || 0) >= 1.0) {
           newCpmRevenue = Math.min(targetCpmRev * 0.95, li.cpmRevenue * 0.98);
         } else {
           newCpmRevenue = li.cpmRevenue * 0.95;
@@ -355,12 +364,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     // - La performance (perfRatio)
     // - L'écart du CPM Revenue au Cap (pour équilibrer)
     
-    const itemsWithScore = optimizedItems.map(item => {
+    const itemsWithScore: OptimizationItem[] = optimizedItems.map(item => {
       // Score de performance
-      let perfScore = Math.pow(Math.max(0.1, item.perfRatio), 2);
+      let perfScore = Math.pow(Math.max(0.1, item.perfRatio || 0), 2);
       
       // Bonus si la ligne aide à atteindre le Cap moyen
-      const cpmRevRatio = item.newCpmRevenue / targetCpmRev;
+      const cpmRevRatio = (item.newCpmRevenue || item.cpmRevenue) / targetCpmRev;
       let capAlignmentBonus = 1;
       
       if (currentWeightedCpmRev < targetCpmRev) {
@@ -379,9 +388,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         allocationScore = 0;
       } else {
         if (marginGoal === "increase") {
-          allocationScore = perfScore * capAlignmentBonus * (1 + item.newMargin / 100);
+          allocationScore = perfScore * capAlignmentBonus * (1 + (item.newMargin || item.marginPct) / 100);
         } else {
-          allocationScore = perfScore * capAlignmentBonus * (1 + (100 - item.newMargin) / 100);
+          allocationScore = perfScore * capAlignmentBonus * (1 + (100 - (item.newMargin || item.marginPct)) / 100);
         }
       }
       
@@ -390,16 +399,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     
     // Réallocation des budgets
     const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
-    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    const totalScore = unlockedItems.reduce((acc, li) => acc + (li.allocationScore || 0), 0);
     
-    optimizedItems = itemsWithScore.map(li => {
+    const finalItems: LineItem[] = itemsWithScore.map(li => {
       let finalSpend = li.spend || 0;
       
       if (!lockedLines.has(li.id)) {
         if (isFin && li.perfRatio === 0) {
           finalSpend = (li.spend || 0) * 0.1;
         } else {
-          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          const theoreticalSpend = totalScore > 0 ? ((li.allocationScore || 0) / totalScore) * availableSpend : (li.spend || 0);
           // Lissage 70/30 pour éviter les changements trop brutaux
           finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
         }
@@ -409,21 +418,23 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         id: li.id,
         name: li.name,
         spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
-        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
-        marginPct: Number(li.newMargin.toFixed(2)),
+        cpmRevenue: Number((li.newCpmRevenue || li.cpmRevenue).toFixed(2)),
+        marginPct: Number((li.newMargin || li.marginPct).toFixed(2)),
         kpiActual: li.kpiActual
       };
     });
     
     // Vérification finale : calcul du CPM Revenue moyen après optimisation
-    const finalTotalSpend = optimizedItems.reduce((acc, li) => acc + li.spend, 0);
+    const finalTotalSpend = finalItems.reduce((acc, li) => acc + li.spend, 0);
     const finalWeightedCpmRev = finalTotalSpend > 0 
-      ? optimizedItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
+      ? finalItems.reduce((acc, li) => acc + (li.spend * li.cpmRevenue), 0) / finalTotalSpend
       : 0;
     
     console.log(`✅ CPM Revenue moyen après optimisation : ${finalWeightedCpmRev.toFixed(2)} ${currSym}`);
     console.log(`🎯 Objectif (Cap) : ${targetCpmRev.toFixed(2)} ${currSym}`);
     console.log(`📊 Écart final : ${Math.abs(finalWeightedCpmRev - targetCpmRev).toFixed(2)} ${currSym}`);
+    
+    setProposedOptimizations(finalItems);
     
   } else {
     // 🚀 MODE : NE PAS RESPECTER LE CPM VENDU (OPTIMISATION LIBRE)
@@ -436,7 +447,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       // Ajustement de la marge
       if (isFin && li.perfRatio === 0) {
         newMargin = li.marginPct;
-      } else if (li.perfRatio < 1.0) {
+      } else if ((li.perfRatio || 0) < 1.0) {
         if (marginGoal === "increase") {
           newMargin = li.marginPct;
         } else {
@@ -444,11 +455,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         }
       } else {
         if (marginGoal === "increase") {
-          if (li.perfRatio >= 1.2) newMargin += 5;
-          else if (li.perfRatio >= 1.0) newMargin += 2;
+          if ((li.perfRatio || 0) >= 1.2) newMargin += 5;
+          else if ((li.perfRatio || 0) >= 1.0) newMargin += 2;
         } else if (marginGoal === "decrease") {
-          if (li.perfRatio >= 1.2) newMargin -= 2;
-          else if (li.perfRatio > 1.0) newMargin -= 5;
+          if ((li.perfRatio || 0) >= 1.2) newMargin -= 2;
+          else if ((li.perfRatio || 0) > 1.0) newMargin -= 5;
         }
       }
       
@@ -456,13 +467,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       // Ajustement du CPM Revenue (liberté totale)
       if (marginGoal === "increase") {
-        if (li.perfRatio >= 1.2) {
+        if ((li.perfRatio || 0) >= 1.2) {
           newCpmRevenue = li.cpmRevenue * 1.08;
-        } else if (li.perfRatio >= 1.0) {
+        } else if ((li.perfRatio || 0) >= 1.0) {
           newCpmRevenue = li.cpmRevenue * 1.05;
         }
       } else {
-        if (li.perfRatio >= 1.0) {
+        if ((li.perfRatio || 0) >= 1.0) {
           newCpmRevenue = li.cpmRevenue * 0.97;
         }
       }
@@ -471,16 +482,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     });
     
     // Réallocation des budgets (logique standard)
-    const itemsWithScore = optimizedItems.map(item => {
+    const itemsWithScore: OptimizationItem[] = optimizedItems.map(item => {
       let allocationScore = 0;
       
       if (item.perfRatio === 0) {
         allocationScore = 0;
       } else {
         if (marginGoal === "increase") {
-          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + item.newMargin / 100);
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio || 0), 2) * (1 + (item.newMargin || item.marginPct) / 100);
         } else {
-          allocationScore = Math.pow(Math.max(0.1, item.perfRatio), 2) * (1 + (100 - item.newMargin) / 100);
+          allocationScore = Math.pow(Math.max(0.1, item.perfRatio || 0), 2) * (1 + (100 - (item.newMargin || item.marginPct)) / 100);
         }
       }
       
@@ -488,16 +499,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     });
     
     const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
-    const totalScore = unlockedItems.reduce((acc, li) => acc + li.allocationScore, 0);
+    const totalScore = unlockedItems.reduce((acc, li) => acc + (li.allocationScore || 0), 0);
     
-    optimizedItems = itemsWithScore.map(li => {
+    const finalItems: LineItem[] = itemsWithScore.map(li => {
       let finalSpend = li.spend || 0;
       
       if (!lockedLines.has(li.id)) {
         if (isFin && li.perfRatio === 0) {
           finalSpend = (li.spend || 0) * 0.1;
         } else {
-          const theoreticalSpend = totalScore > 0 ? (li.allocationScore / totalScore) * availableSpend : (li.spend || 0);
+          const theoreticalSpend = totalScore > 0 ? ((li.allocationScore || 0) / totalScore) * availableSpend : (li.spend || 0);
           finalSpend = (theoreticalSpend * 0.7) + ((li.spend || 0) * 0.3);
         }
       }
@@ -506,14 +517,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         id: li.id,
         name: li.name,
         spend: isNaN(finalSpend) ? 0 : Number(finalSpend.toFixed(2)),
-        cpmRevenue: Number(li.newCpmRevenue.toFixed(2)),
-        marginPct: Number(li.newMargin.toFixed(2)),
+        cpmRevenue: Number((li.newCpmRevenue || li.cpmRevenue).toFixed(2)),
+        marginPct: Number((li.newMargin || li.marginPct).toFixed(2)),
         kpiActual: li.kpiActual
       };
     });
+    
+    setProposedOptimizations(finalItems);
   }
-  
-  setProposedOptimizations(optimizedItems);
 };
 
   const applyOptimizations = () => {
@@ -964,14 +975,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
 
-                    {/* Bloc Calculation IIFE MODIFIÉ */}
+                    {/* Bloc Calculation IIFE */}
                     {(() => {
                       const newMargin = currentMarginPctCalc + uplift;
                       const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
 
                       const budgetRestant = project.budgetTotal - project.budgetSpent;
-                      
-                      // Calcul du cost déjà dépensé avec l'ancienne marge
                       const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
                       
                       let costDSP = 0;
@@ -979,13 +988,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
                       if (project.inputMode === "CPM Cost") {
                         if (uplift >= 0) {
-                          // Cas Hausse de marge : 
-                          // 1. On calcule le nouveau budget cost pour ce qu'il reste à dépenser
                           costDSP = budgetRestant * (1 - newMargin / 100);
-                          // 2. On calcule le total (ce qui a été dépensé + ce qu'il reste à dépenser)
                           totalCostDSP = costDejaDepense + costDSP;
                         } else {
-                          // Cas Baisse de marge :
                           const costRestant = budgetRestant * (1 - newMargin / 100);
                           costDSP = costDejaDepense + costRestant;
                           totalCostDSP = costDSP;
@@ -1010,7 +1015,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
                                 </div>
                                 
-                                {/* --- NOUVEAU BLOC : Affichage du Total à saisir en cas de hausse --- */}
                                 {uplift > 0 && (
                                    <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
                                      <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
@@ -1062,239 +1066,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                           </>
                         )}
                       </button>
-                    </div>
-
-                    {/* Options 1 & 2 */}
-                    <div className="grid grid-cols-2 gap-6 mt-8">
-                      {/* Option 1 */}
-                      <div className="border border-blue-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                        <h4 className="text-blue-900 font-bold text-base mb-2">
-                          {uplift >= 0 ? "🔵 OPTION 1 : AUGMENTER CPM REVENU" : "🔵 OPTION 1 : BAISSER CPM REVENU"}
-                        </h4>
-                        <p className="text-gray-500 text-sm mb-6">
-                          {uplift >= 0 ? "Garder le Bid (Qualité stable), augmenter le CPM Revenu." : "Garder le Bid (Qualité stable), baisser le CPM Revenu."}
-                        </p>
-                        
-                        {(() => {
-                          const newMarg = currentMarginPctCalc + uplift;
-                          const newRevOpt1 = (1 - newMarg/100) > 0 ? cpmCostActuelCalc / (1 - newMarg/100) : 999;
-                          const exceeds = newRevOpt1 > project.cpmSoldCap;
-                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
-                          
-                          let kpiOpt1 = 0, kpiPess1 = 0;
-                          if (isFin && perfRate > 0) {
-                            kpiOpt1 = project.kpiType !== "CPM" ? newRevOpt1 / (perfRate * 1000) : newRevOpt1;
-                            kpiPess1 = project.kpiType !== "CPM" ? newRevOpt1 / ((perfRate * 0.95) * 1000) : newRevOpt1;
-                          } else if (!isFin) {
-                            kpiOpt1 = project.actualKpi;
-                            kpiPess1 = project.actualKpi * 0.95;
-                          }
-
-                          return (
-                            <div className="space-y-4">
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau CPM</div>
-                                <div className="text-2xl font-black text-gray-900">{newRevOpt1.toFixed(2)} {currSym}</div>
-                                {exceeds && <div className="text-xs text-red-500 font-bold mt-2 bg-red-50 p-2 rounded-md">⛔ Plafond ({project.cpmSoldCap}) dépassé</div>}
-                              </div>
-                              
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
-                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
-                                </div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                  <span className="text-sm font-bold text-emerald-600">
-                                    {isFin ? `${fmtKpi(kpiOpt1)} ${currSym}` : `${(kpiOpt1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                  <span className="text-sm font-bold text-red-600">
-                                    {isFin ? `${fmtKpi(kpiPess1)} ${currSym}` : `${(kpiPess1 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <details className="group bg-blue-50 rounded-xl border border-blue-100 overflow-hidden">
-                                <summary className="cursor-pointer p-3 text-sm font-bold text-blue-900 flex items-center justify-between list-none">
-                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Pourquoi ?</span>
-                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                                </summary>
-                                <div className="p-3 pt-0 text-xs text-blue-800 leading-relaxed border-t border-blue-100/50 mt-1">
-                                  <strong>Mécanique :</strong> {uplift >= 0 ? "En augmentant le CPM facturé sans toucher au bid (CPM Cost), le win-rate et l'accès aux inventaires restent identiques. La qualité (CTR, CVR) ne bouge pas." : "En baissant le CPM facturé, vous réduisez votre marge mais le setup d'achat reste le même."}<br/><br/>
-                                  <strong>Impact {project.kpiType} :</strong> L'impact est purement mathématique. La variation (optimiste/pessimiste) reflète uniquement la volatilité naturelle de l'algorithme de pacing du DSP (±5%).
-                                </div>
-                              </details>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Option 2 */}
-                      <div className="border border-amber-100 bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                        <h4 className="text-amber-900 font-bold text-base mb-2">
-                          {uplift >= 0 ? "🟠 OPTION 2 : BAISSE DU BID" : "🟠 OPTION 2 : HAUSSE DU BID"}
-                        </h4>
-                        <p className="text-gray-500 text-sm mb-6">
-                          {uplift >= 0 ? "CPM Revenu ne bouge pas. Acheter moins cher (Risque qualité)." : "CPM Revenu ne bouge pas. Acheter plus cher (Amélioration qualité)."}
-                        </p>
-                        
-                        {(() => {
-                          const newMarg = currentMarginPctCalc + uplift;
-                          const newCostOpt2 = project.cpmRevenueActual * (1 - newMarg/100);
-                          const priceDrop = cpmCostActuelCalc > 0 ? (cpmCostActuelCalc - newCostOpt2) / cpmCostActuelCalc : 0;
-                          
-                          let dropOpt = 1;
-                          let dropPess = 1;
-                          let expertExplanation = "";
-                          
-                          const isStrictClick = attrView === 0;
-                          const isLongView = attrView >= 2;
-                          const isMidView = attrView >= 1 && attrView < 2;
-                          
-                          switch(project.kpiType) {
-                            case "CPA":
-                            case "CPL":
-                              if (priceDrop >= 0) {
-                                if (isLongView) {
-                                  dropOpt = 0.85;
-                                  dropPess = 1.05;
-                                  expertExplanation = `🍪 STRATÉGIE D'ARBITRAGE (Cookie Dropping) : Avec une fenêtre Post-View confortable de ${attrView} jours, vous activez un levier d'arbitrage statistique.`;
-                                } else if (isMidView) {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 2.5));
-                                  expertExplanation = `⚠️ GUERRE D'INTENTION (Standard View ${attrView}j) : Avec une fenêtre courte, l'organique ne suffit plus.`;
-                                } else {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 3.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 6.0));
-                                  expertExplanation = `🛑 GUERRE D'ATTENTION (Pure Performance) : En attribution Click-Only, le Post-View ne vous sauve plus.`;
-                                }
-                              } else {
-                                if (isStrictClick) {
-                                  dropOpt = 1 - (priceDrop * 1.8);
-                                  dropPess = 1 - (priceDrop * 0.9);
-                                  expertExplanation = "🎯 SNIPER QUALITÉ : En attribution Click-Only, payer plus cher est la seule option viable.";
-                                } else {
-                                  dropOpt = 1 - (priceDrop * 1.3);
-                                  dropPess = 1 - (priceDrop * 0.7);
-                                  expertExplanation = "🚀 HEADROOM ALGORITHMIQUE : En augmentant le Cap Bid, vous donnez de l'oxygène au Smart Bidding.";
-                                }
-                              }
-                              break;
-
-                            case "CPV":
-                              if (priceDrop >= 0) {
-                                if (attrClick > 7) {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 1.5));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                  expertExplanation = `📉 RETENTION (Long Post-Click ${attrClick}j) : Baisser le bid attire un trafic de faible qualité.`;
-                                } else {
-                                  dropOpt = Math.max(0.1, 1 - (priceDrop * 2.8));
-                                  dropPess = Math.max(0.1, 1 - (priceDrop * 5.0));
-                                  expertExplanation = `📉 QUALITÉ DE SESSION & BOUNCE : Le CPV est un détecteur de mensonge.`;
-                                }
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.4);
-                                dropPess = 1 - (priceDrop * 0.8);
-                                expertExplanation = "🚀 FILTRE QUALITÉ : En montant le bid, vous achetez du temps de cerveau disponible.";
-                              }
-                              break;
-
-                            case "CPCV":
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.8));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 3.0));
-                                expertExplanation = "🗑️ CHUTE DANS L'OUTSTREAM : Sur l'Open Web, le 'Vrai' In-Stream a des Floor Prices élevés.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.2);
-                                dropPess = 1 - (priceDrop * 0.5);
-                                expertExplanation = "📺 CLEARING PRICE : Un bid agressif permet de passer au-dessus des Floor Prices.";
-                              }
-                              break;
-
-                            case "CTR":
-                            case "CPC":
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 1.3));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 2.0));
-                                expertExplanation = "👀 VISIBILITÉ : Le CTR est corrélé à la position.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 1.4);
-                                dropPess = 1 - (priceDrop * 0.7);
-                                expertExplanation = "👆 ABOVE THE FOLD : Payer plus cher permet de gagner les header-bidding auctions.";
-                              }
-                              break;
-
-                            default:
-                              if (priceDrop >= 0) {
-                                dropOpt = Math.max(0.1, 1 - (priceDrop * 0.9));
-                                dropPess = Math.max(0.1, 1 - (priceDrop * 1.2));
-                                expertExplanation = "⚠️ RISQUE MFA : Un CPM trop bas vous expose aux sites MFA.";
-                              } else {
-                                dropOpt = 1 - (priceDrop * 0.6);
-                                dropPess = 1 - (priceDrop * 0.3);
-                                expertExplanation = "🛡️ WHITELISTS : Payer le juste prix permet de diffuser sur des Whitelists Premium.";
-                              }
-                              break;
-                          }
-                          
-                          const perfRate = project.cpmRevenueActual > 0 && project.actualKpi > 0 ? project.cpmRevenueActual / (project.actualKpi * 1000) : 0;
-                          let kpiOpt2 = 0, kpiPess2 = 0;
-
-                          if (isFin) {
-                            if (project.kpiType === "CPM") {
-                              kpiOpt2 = project.cpmRevenueActual;
-                              kpiPess2 = project.cpmRevenueActual;
-                            } else if (perfRate > 0) {
-                              kpiOpt2 = project.cpmRevenueActual / ((perfRate * dropOpt) * 1000);
-                              kpiPess2 = project.cpmRevenueActual / ((perfRate * dropPess) * 1000);
-                            }
-                          } else {
-                            kpiOpt2 = project.actualKpi * dropOpt;
-                            kpiPess2 = project.actualKpi * dropPess;
-                          }
-
-                          return (
-                            <div className="space-y-4">
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau Bid CPM Cost</div>
-                                <div className="text-2xl font-black text-gray-900">{newCostOpt2.toFixed(2)} {currSym}</div>
-                              </div>
-                              
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
-                                  IMPACT KPI : <span className="text-gray-900 font-black ml-1">{project.kpiType}</span>
-                                </div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm text-gray-600">🌤️ Optimiste</span>
-                                  <span className="text-sm font-bold text-emerald-600">
-                                    {isFin ? `${fmtKpi(kpiOpt2)} ${currSym}` : `${(kpiOpt2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm text-gray-600">🌧️ Pessimiste</span>
-                                  <span className="text-sm font-bold text-red-600">
-                                    {isFin ? `${fmtKpi(kpiPess2)} ${currSym}` : `${(kpiPess2 * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} %`}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <details className="group bg-amber-50 rounded-xl border border-amber-100 overflow-hidden">
-                                <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 flex items-center justify-between list-none">
-                                  <span className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Analyse Expert</span>
-                                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
-                                </summary>
-                                <div className="p-3 pt-0 text-xs text-amber-800 leading-relaxed border-t border-amber-100/50 mt-1">
-                                  <strong>{project.kpiType} Impact :</strong> {expertExplanation}
-                                </div>
-                              </details>
-                            </div>
-                          );
-                        })()}
-                      </div>
                     </div>
 
                     {/* Chart */}
@@ -1766,6 +1537,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         {snap.action === "MARGIN_UP" ? "📈 MONTÉE MARGE" :
                                          snap.action === "MARGIN_DOWN" ? "📉 BAISSE MARGE" :
                                          snap.action === "OPTIMIZATION" ? "🎛️ OPTIMISATION" :
+                                         snap.action === "DAILY_UPDATE" ? "📅 SUIVI QUOTIDIEN" :
                                          "💾 SAUVEGARDE"}
                                       </div>
                                       {isRecent && (
@@ -1886,7 +1658,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
               {activeTab === "notes" && (
   <div className="space-y-6">
-    {/* Vérifier que c'est un projet sauvegardé */}
     {!project?.id ? (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
         <div className="text-4xl mb-3">⚠️</div>
@@ -1904,7 +1675,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           </div>
         </div>
 
-        {/* Formulaire d'ajout de note */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">✍️</span>
@@ -1950,7 +1720,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           </div>
         </div>
 
-        {/* Liste des notes */}
         {(!project.notes || project.notes.length === 0) ? (
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
             <div className="text-4xl mb-3">📝</div>
