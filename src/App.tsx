@@ -1,3 +1,4 @@
+import { PortfolioOverview } from "./components/PortfolioOverview";
 import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { CockpitYield } from "./components/CockpitYield";
