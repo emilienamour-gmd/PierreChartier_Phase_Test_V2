@@ -12,7 +12,7 @@ import { IntroVideo } from "./components/IntroVideo";
 import { useProjectStore } from "./store/useProjectStore";
 import { useUserStore } from "./store/useUserStore";
 import { DEFAULT_PROJECT } from "./types";
-import { Search, Bell, Layout, LogOut, ChevronDown, Plus } from "lucide-react";
+import { Search, Bell, Layout, LogOut, ChevronDown, Plus, Percent, TrendingUp, DollarSign, Target } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("cockpit");
@@ -73,6 +73,59 @@ export default function App() {
     help: "Help Center",
   };
 
+  // 📊 Fonction pour calculer les KPIs moyens
+  const calculateAverageKPIs = (project: any) => {
+    const currSym = project.currency.includes("EUR") ? "€" : "$";
+    
+    if (!project.dailyEntries || project.dailyEntries.length === 0) {
+      let margin = 0;
+      if (project.inputMode === "CPM Cost") {
+        if (project.cpmRevenueActual > 0) {
+          margin = ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100;
+        }
+      } else {
+        margin = project.margeInput;
+      }
+
+      return {
+        avgCpmRevenue: project.cpmRevenueActual,
+        avgMargin: margin,
+        avgKpi: project.actualKpi,
+        totalBudgetSpent: project.budgetSpent,
+        entriesCount: 0,
+        currSym,
+        kpiType: project.kpiType,
+        targetKpi: project.targetKpi
+      };
+    }
+
+    const totalBudgetSpent = project.dailyEntries.reduce((sum: number, e: any) => sum + e.budgetSpent, 0);
+    
+    let weightedCpmRevenue = 0;
+    let weightedMargin = 0;
+    let weightedKpi = 0;
+
+    if (totalBudgetSpent > 0) {
+      project.dailyEntries.forEach((entry: any) => {
+        const weight = entry.budgetSpent / totalBudgetSpent;
+        weightedCpmRevenue += entry.cpmRevenue * weight;
+        weightedMargin += entry.marginPct * weight;
+        weightedKpi += entry.kpiActual * weight;
+      });
+    }
+
+    return {
+      avgCpmRevenue: weightedCpmRevenue,
+      avgMargin: weightedMargin,
+      avgKpi: weightedKpi,
+      totalBudgetSpent,
+      entriesCount: project.dailyEntries.length,
+      currSym,
+      kpiType: project.kpiType,
+      targetKpi: project.targetKpi
+    };
+  };
+
   return (
     <div className={`flex h-screen w-full bg-[#f8f9fa] overflow-hidden font-sans text-gray-900 theme-${localUser.theme}`}>
       
@@ -121,7 +174,7 @@ export default function App() {
                     onClick={() => setShowCampaignDropdown(false)}
                   />
                   
-                  <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 max-h-96 overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 max-h-96 overflow-y-auto">
                     {/* Bouton "Nouvelle Campagne" */}
                     <button
                       onClick={() => {
@@ -143,16 +196,7 @@ export default function App() {
                       <div className="py-2">
                         {projects.map((project) => {
                           const isActive = currentProject?.id === project.id;
-                          
-                          // Calculer les KPIs
-                          let margin = 0;
-                          if (project.inputMode === "CPM Cost") {
-                            if (project.cpmRevenueActual > 0) {
-                              margin = ((project.cpmRevenueActual - project.cpmCostActuel) / project.cpmRevenueActual) * 100;
-                            }
-                          } else {
-                            margin = project.margeInput;
-                          }
+                          const kpis = calculateAverageKPIs(project);
 
                           return (
                             <button
@@ -161,24 +205,48 @@ export default function App() {
                                 loadProject(project.id);
                                 setShowCampaignDropdown(false);
                               }}
-                              className={`w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
+                              className={`w-full px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${
                                 isActive ? 'bg-blue-50' : ''
                               }`}
                             >
-                              <div className="flex-1 text-left">
-                                <div className={`font-bold ${isActive ? 'text-blue-600' : 'text-gray-900'}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className={`font-bold text-left ${isActive ? 'text-blue-600' : 'text-gray-900'}`}>
                                   {project.name}
                                 </div>
-                                {project.dailyEntries && project.dailyEntries.length > 0 && (
-                                  <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                                    <span>{margin.toFixed(1)}% marge</span>
-                                    <span>•</span>
-                                    <span>{project.budgetSpent.toFixed(0)} {project.currency.includes("EUR") ? "€" : "$"}</span>
-                                  </div>
+                                {isActive && (
+                                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                                 )}
                               </div>
-                              {isActive && (
-                                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+
+                              {/* 📊 MÉTRIQUES MOYENNES */}
+                              {kpis.entriesCount > 0 && (
+                                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                  <div className="flex items-center gap-1.5">
+                                    <Percent className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="font-medium">{kpis.avgMargin.toFixed(1)}%</span>
+                                    <span className="text-gray-400">marge</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="font-medium">{kpis.avgCpmRevenue.toFixed(2)}</span>
+                                    <span className="text-gray-400">CPM</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="font-medium">{kpis.totalBudgetSpent.toFixed(0)} {kpis.currSym}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Target className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="font-medium">{kpis.targetKpi.toFixed(2)}</span>
+                                    <span className="text-gray-400">{kpis.kpiType}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {kpis.entriesCount === 0 && (
+                                <div className="text-xs text-gray-400 italic text-left">
+                                  Aucune donnée quotidienne
+                                </div>
                               )}
                             </button>
                           );
