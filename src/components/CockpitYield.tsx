@@ -1014,135 +1014,347 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
 
-                    {/* 📊 PROJECTION KPI AVEC 2 OPTIONS - NOUVELLE SECTION */}
+                    {/* 🎯 PROJECTION KPI ULTRA-PERFECTIONNÉE - AVEC ALGORITHME COMPLET */}
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
-                      <h4 className="font-bold text-purple-900 mb-4 flex items-center gap-2">
+                      <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                         <Target className="w-5 h-5" />
                         Impact sur le {project.kpiType} Objectif
                       </h4>
                       <p className="text-sm text-purple-700 mb-6">
-                        Fourchette d'impact selon votre stratégie d'enchères
+                        Fourchette d'impact selon votre stratégie d'enchères et les conditions du marché
                       </p>
 
                       {(() => {
                         const newMargin = currentMarginPctCalc + uplift;
+                        const marginChangePct = uplift / currentMarginPctCalc; // % de variation de marge
                         const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+                        const isIncreasingMargin = uplift > 0;
                         
+                        // OPTION 1 : BID STABLE (CPM Cost constant)
                         const option1_cpmCost = cpmCostActuelCalc;
                         const option1_cpmRevenue = option1_cpmCost / (1 - newMargin / 100);
                         
-                        const option2_cpmCost = cpmCostActuelCalc * (uplift > 0 ? 0.95 : 1.05);
+                        // OPTION 2 : BID AJUSTÉ
+                        // Calcul du bid optimal pour maintenir la compétitivité
+                        let option2_cpmCost = cpmCostActuelCalc;
+                        let option2_bidAdjustmentPct = 0;
+                        let option2_explanation = "";
+                        
+                        if (isIncreasingMargin) {
+                          // Montée de marge → Il faut BAISSER le bid pour rester compétitif
+                          // Formule : Pour chaque % de marge gagné, baisser le bid de X%
+                          const kpiGap = isFin 
+                            ? ((project.actualKpi - project.targetKpi) / project.targetKpi) 
+                            : ((project.targetKpi - project.actualKpi) / project.targetKpi);
+                          
+                          // Si on est déjà dans l'objectif, on peut se permettre plus d'agressivité
+                          const aggressiveness = kpiGap > 0 ? 0.25 : 0.15; // 25% si confort, 15% si tension
+                          
+                          option2_bidAdjustmentPct = Math.abs(marginChangePct) * aggressiveness * 100;
+                          option2_cpmCost = cpmCostActuelCalc * (1 - option2_bidAdjustmentPct / 100);
+                          
+                          option2_explanation = `Pour maintenir la compétitivité malgré la hausse de marge, baissez votre bid de ${option2_bidAdjustmentPct.toFixed(1)}% (soit ${option2_cpmCost.toFixed(2)} ${currSym})`;
+                        } else {
+                          // Baisse de marge → On peut AUGMENTER le bid pour chercher du volume
+                          const volumeBoost = 0.35; // 35% de boost possible
+                          option2_bidAdjustmentPct = Math.abs(marginChangePct) * volumeBoost * 100;
+                          option2_cpmCost = cpmCostActuelCalc * (1 + option2_bidAdjustmentPct / 100);
+                          
+                          option2_explanation = `Pour maximiser le volume et améliorer le KPI, augmentez votre bid de ${option2_bidAdjustmentPct.toFixed(1)}% (soit ${option2_cpmCost.toFixed(2)} ${currSym})`;
+                        }
+                        
                         const option2_cpmRevenue = option2_cpmCost / (1 - newMargin / 100);
                         
-                        const option1_kpi = project.actualKpi;
-                        const option2_kpi = isFin 
-                          ? project.actualKpi * (option2_cpmCost / cpmCostActuelCalc)
-                          : project.actualKpi * (1 + (cpmCostActuelCalc - option2_cpmCost) / cpmCostActuelCalc * 0.3);
+                        // CALCUL DES KPIs PROJETÉS - FOURCHETTE PESSIMISTE & OPTIMISTE
+                        
+                        // Facteurs d'impact
+                        const marketVolatility = 0.15; // Volatilité marché ±15%
+                        const competitionFactor = 0.20; // Facteur concurrence ±20%
+                        
+                        // OPTION 1 - BID STABLE
+                        let option1_kpi_optimistic, option1_kpi_pessimistic;
+                        
+                        if (isFin) {
+                          // Pour KPIs financiers (CPA, CPCV, etc.) : plus de marge = moins compétitif = KPI se dégrade
+                          if (isIncreasingMargin) {
+                            // Montée marge → KPI se dégrade (augmente)
+                            const baseImpact = 1 + (Math.abs(marginChangePct) * 0.25); // +25% d'impact base
+                            option1_kpi_optimistic = project.actualKpi * (baseImpact - marketVolatility); // Scénario favorable
+                            option1_kpi_pessimistic = project.actualKpi * (baseImpact + competitionFactor); // Scénario défavorable
+                          } else {
+                            // Baisse marge → KPI s'améliore (baisse)
+                            const baseImpact = 1 - (Math.abs(marginChangePct) * 0.30); // -30% d'amélioration base
+                            option1_kpi_optimistic = project.actualKpi * (baseImpact + marketVolatility); // Moins bon que prévu
+                            option1_kpi_pessimistic = project.actualKpi * (baseImpact - 0.10); // Meilleur que prévu
+                          }
+                        } else {
+                          // Pour KPIs qualité (CTR, Viewability, VTR)
+                          if (isIncreasingMargin) {
+                            const baseImpact = 1 - (Math.abs(marginChangePct) * 0.15);
+                            option1_kpi_optimistic = project.actualKpi * (baseImpact + 0.05);
+                            option1_kpi_pessimistic = project.actualKpi * (baseImpact - marketVolatility);
+                          } else {
+                            const baseImpact = 1 + (Math.abs(marginChangePct) * 0.20);
+                            option1_kpi_optimistic = project.actualKpi * (baseImpact - 0.05);
+                            option1_kpi_pessimistic = project.actualKpi * (baseImpact + 0.10);
+                          }
+                        }
+                        
+                        // OPTION 2 - BID AJUSTÉ (plus stable car on compense)
+                        let option2_kpi_optimistic, option2_kpi_pessimistic;
+                        
+                        if (isFin) {
+                          if (isIncreasingMargin) {
+                            // Avec ajustement du bid, l'impact est réduit
+                            const baseImpact = 1 + (Math.abs(marginChangePct) * 0.10); // Seulement 10% car on compense
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact - 0.08);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact + marketVolatility);
+                          } else {
+                            // Baisse marge + hausse bid = double effet positif
+                            const baseImpact = 1 - (Math.abs(marginChangePct) * 0.45); // -45% d'amélioration
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact + 0.10);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact - 0.15);
+                          }
+                        } else {
+                          if (isIncreasingMargin) {
+                            const baseImpact = 1 - (Math.abs(marginChangePct) * 0.08);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact + 0.03);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact - 0.10);
+                          } else {
+                            const baseImpact = 1 + (Math.abs(marginChangePct) * 0.30);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact - 0.08);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact + 0.15);
+                          }
+                        }
                         
                         const targetKpi = project.targetKpi;
                         
+                        // Déterminer quelle option atteint l'objectif
+                        const option1_meetsTarget_optimistic = isFin 
+                          ? option1_kpi_optimistic <= targetKpi 
+                          : option1_kpi_optimistic >= targetKpi;
+                        const option1_meetsTarget_pessimistic = isFin 
+                          ? option1_kpi_pessimistic <= targetKpi 
+                          : option1_kpi_pessimistic >= targetKpi;
+                          
+                        const option2_meetsTarget_optimistic = isFin 
+                          ? option2_kpi_optimistic <= targetKpi 
+                          : option2_kpi_optimistic >= targetKpi;
+                        const option2_meetsTarget_pessimistic = isFin 
+                          ? option2_kpi_pessimistic <= targetKpi 
+                          : option2_kpi_pessimistic >= targetKpi;
+                        
                         return (
-                          <div className="grid grid-cols-2 gap-4">
-                            {/* OPTION 1 */}
-                            <div className="bg-white border-2 border-purple-200 rounded-xl p-5">
-                              <div className="flex items-center gap-2 mb-3">
-                                <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-black">1</div>
-                                <div>
-                                  <h5 className="font-bold text-purple-900">Bid Stable</h5>
-                                  <p className="text-xs text-purple-600">CPM Cost constant</p>
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              {/* OPTION 1 - BID STABLE */}
+                              <div className="bg-white border-2 border-purple-200 rounded-xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-black">1</div>
+                                  <div>
+                                    <h5 className="font-bold text-purple-900">Bid Stable</h5>
+                                    <p className="text-xs text-purple-600">CPM Cost constant</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                  <div className="bg-purple-50 rounded-lg p-3">
+                                    <div className="text-xs text-purple-600 mb-1">CPM Cost (Bid)</div>
+                                    <div className="text-lg font-black text-purple-900">{option1_cpmCost.toFixed(2)} {currSym}</div>
+                                    <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
+                                  </div>
+                                  
+                                  <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
+                                    <div className="text-sm font-bold text-gray-900">{option1_cpmRevenue.toFixed(2)} {currSym}</div>
+                                  </div>
+                                  
+                                  {/* FOURCHETTE KPI */}
+                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
+                                    <div className="text-xs font-bold text-blue-900 mb-3 flex items-center justify-between">
+                                      <span>{project.kpiType} Projeté</span>
+                                      <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">FOURCHETTE</span>
+                                    </div>
+                                    
+                                    {/* Scénario Optimiste */}
+                                    <div className={cn("mb-2 p-2 rounded border", 
+                                      option1_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
+                                    )}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[10px] font-bold text-gray-600">😊 Optimiste</span>
+                                        {option1_meetsTarget_optimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-orange-600 text-xs">⚠</span>}
+                                      </div>
+                                      <div className={cn("text-lg font-black", 
+                                        option1_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600"
+                                      )}>
+                                        {fmtKpi(option1_kpi_optimistic)}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Scénario Pessimiste */}
+                                    <div className={cn("p-2 rounded border", 
+                                      option1_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300"
+                                    )}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[10px] font-bold text-gray-600">😰 Pessimiste</span>
+                                        {option1_meetsTarget_pessimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-red-600 text-xs">✗</span>}
+                                      </div>
+                                      <div className={cn("text-lg font-black", 
+                                        option1_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600"
+                                      )}>
+                                        {fmtKpi(option1_kpi_pessimistic)}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200">
+                                      Objectif : <strong>{fmtKpi(targetKpi)}</strong>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                              
-                              <div className="space-y-3">
-                                <div className="bg-purple-50 rounded-lg p-3">
-                                  <div className="text-xs text-purple-600 mb-1">CPM Cost (Bid)</div>
-                                  <div className="text-lg font-black text-purple-900">{option1_cpmCost.toFixed(2)} {currSym}</div>
-                                  <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
+
+                              {/* OPTION 2 - BID AJUSTÉ */}
+                              <div className="bg-white border-2 border-pink-200 rounded-xl p-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
+                                  <div>
+                                    <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
+                                    <p className="text-xs text-pink-600">Plus stable</p>
+                                  </div>
                                 </div>
                                 
-                                <div className="bg-gray-50 rounded-lg p-3">
-                                  <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
-                                  <div className="text-sm font-bold text-gray-900">{option1_cpmRevenue.toFixed(2)} {currSym}</div>
-                                </div>
-                                
-                                <div className={cn(
-                                  "rounded-lg p-3 border-2",
-                                  isFin 
-                                    ? (option1_kpi <= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
-                                    : (option1_kpi >= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
-                                )}>
-                                  <div className="text-xs font-bold mb-1 flex items-center justify-between">
-                                    <span className={isFin ? (option1_kpi <= targetKpi ? "text-emerald-700" : "text-red-700") : (option1_kpi >= targetKpi ? "text-emerald-700" : "text-red-700")}>
-                                      {project.kpiType} Projeté
-                                    </span>
-                                    {isFin 
-                                      ? (option1_kpi <= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
-                                      : (option1_kpi >= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
-                                    }
+                                <div className="space-y-3">
+                                  <div className="bg-pink-50 rounded-lg p-3">
+                                    <div className="text-xs text-pink-600 mb-1">CPM Cost (Bid) 🎯</div>
+                                    <div className="text-lg font-black text-pink-900">{option2_cpmCost.toFixed(2)} {currSym}</div>
+                                    <div className={cn("text-xs font-bold mt-1 flex items-center gap-1", 
+                                      option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-amber-600"
+                                    )}>
+                                      {option2_cpmCost < cpmCostActuelCalc ? "↓" : "↑"} {Math.abs(option2_bidAdjustmentPct).toFixed(1)}%
+                                      <span className="text-[9px] bg-pink-100 px-1.5 py-0.5 rounded text-pink-700">OPTIMAL</span>
+                                    </div>
                                   </div>
-                                  <div className={cn("text-2xl font-black", 
-                                    isFin 
-                                      ? (option1_kpi <= targetKpi ? "text-emerald-600" : "text-red-600")
-                                      : (option1_kpi >= targetKpi ? "text-emerald-600" : "text-red-600")
-                                  )}>
-                                    {option1_kpi.toFixed(3)}
+                                  
+                                  <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
+                                    <div className="text-sm font-bold text-gray-900">{option2_cpmRevenue.toFixed(2)} {currSym}</div>
                                   </div>
-                                  <div className="text-xs text-gray-600 mt-1">
-                                    Objectif : {targetKpi.toFixed(3)}
+                                  
+                                  {/* FOURCHETTE KPI */}
+                                  <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-lg p-4">
+                                    <div className="text-xs font-bold text-emerald-900 mb-3 flex items-center justify-between">
+                                      <span>{project.kpiType} Projeté</span>
+                                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full">FOURCHETTE</span>
+                                    </div>
+                                    
+                                    {/* Scénario Optimiste */}
+                                    <div className={cn("mb-2 p-2 rounded border", 
+                                      option2_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
+                                    )}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[10px] font-bold text-gray-600">😊 Optimiste</span>
+                                        {option2_meetsTarget_optimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-orange-600 text-xs">⚠</span>}
+                                      </div>
+                                      <div className={cn("text-lg font-black", 
+                                        option2_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600"
+                                      )}>
+                                        {fmtKpi(option2_kpi_optimistic)}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Scénario Pessimiste */}
+                                    <div className={cn("p-2 rounded border", 
+                                      option2_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300"
+                                    )}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[10px] font-bold text-gray-600">😰 Pessimiste</span>
+                                        {option2_meetsTarget_pessimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-red-600 text-xs">✗</span>}
+                                      </div>
+                                      <div className={cn("text-lg font-black", 
+                                        option2_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600"
+                                      )}>
+                                        {fmtKpi(option2_kpi_pessimistic)}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200">
+                                      Objectif : <strong>{fmtKpi(targetKpi)}</strong>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-
-                            {/* OPTION 2 */}
-                            <div className="bg-white border-2 border-pink-200 rounded-xl p-5">
-                              <div className="flex items-center gap-2 mb-3">
-                                <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
-                                <div>
-                                  <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
-                                  <p className="text-xs text-pink-600">Plus volatile</p>
+                            
+                            {/* 📚 ENCART D'EXPLICATIONS PÉDAGOGIQUES */}
+                            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5">
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0">
+                                  💡
                                 </div>
-                              </div>
-                              
-                              <div className="space-y-3">
-                                <div className="bg-pink-50 rounded-lg p-3">
-                                  <div className="text-xs text-pink-600 mb-1">CPM Cost (Bid)</div>
-                                  <div className="text-lg font-black text-pink-900">{option2_cpmCost.toFixed(2)} {currSym}</div>
-                                  <div className={cn("text-xs font-bold mt-1", option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-red-600")}>
-                                    {option2_cpmCost < cpmCostActuelCalc ? "↓" : "↑"} {Math.abs(((option2_cpmCost / cpmCostActuelCalc - 1) * 100)).toFixed(1)}%
-                                  </div>
-                                </div>
-                                
-                                <div className="bg-gray-50 rounded-lg p-3">
-                                  <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
-                                  <div className="text-sm font-bold text-gray-900">{option2_cpmRevenue.toFixed(2)} {currSym}</div>
-                                </div>
-                                
-                                <div className={cn(
-                                  "rounded-lg p-3 border-2",
-                                  isFin 
-                                    ? (option2_kpi <= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
-                                    : (option2_kpi >= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
-                                )}>
-                                  <div className="text-xs font-bold mb-1 flex items-center justify-between">
-                                    <span className={isFin ? (option2_kpi <= targetKpi ? "text-emerald-700" : "text-red-700") : (option2_kpi >= targetKpi ? "text-emerald-700" : "text-red-700")}>
-                                      {project.kpiType} Projeté
-                                    </span>
-                                    {isFin 
-                                      ? (option2_kpi <= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
-                                      : (option2_kpi >= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
-                                    }
-                                  </div>
-                                  <div className={cn("text-2xl font-black", 
-                                    isFin 
-                                      ? (option2_kpi <= targetKpi ? "text-emerald-600" : "text-red-600")
-                                      : (option2_kpi >= targetKpi ? "text-emerald-600" : "text-red-600")
-                                  )}>
-                                    {option2_kpi.toFixed(3)}
-                                  </div>
-                                  <div className="text-xs text-gray-600 mt-1">
-                                    Objectif : {targetKpi.toFixed(3)}
-                                  </div>
+                                <div className="flex-1">
+                                  <h5 className="font-black text-indigo-900 mb-3 text-sm">Pourquoi ces projections ?</h5>
+                                  
+                                  {isIncreasingMargin ? (
+                                    <div className="space-y-3 text-sm text-indigo-800">
+                                      <div className="bg-white/60 rounded-lg p-3 border border-indigo-100">
+                                        <p className="font-bold mb-1.5 text-indigo-900">🔺 Montée de marge = Moins compétitif</p>
+                                        <p className="text-xs leading-relaxed">
+                                          En augmentant votre marge, vous {project.inputMode === "CPM Cost" ? "augmentez votre CPM Revenu" : "baissez votre CPM Cost"}. 
+                                          Vous devenez <strong>moins compétitif aux enchères</strong> → vous gagnez moins d'impressions → 
+                                          {isFin 
+                                            ? " votre coût par conversion (KPI) risque d'augmenter car vous achetez moins de volume."
+                                            : " votre taux de qualité (CTR, Viewability) peut baisser car vous touchez moins d'audience."
+                                          }
+                                        </p>
+                                      </div>
+                                      
+                                      <div className="bg-pink-50/60 rounded-lg p-3 border border-pink-200">
+                                        <p className="font-bold mb-1.5 text-pink-900">🎯 Option 2 recommandée</p>
+                                        <p className="text-xs leading-relaxed">
+                                          {option2_explanation}. Cela vous permet de <strong>compenser la perte de compétitivité</strong> 
+                                          tout en préservant votre {isFin ? "coût par conversion" : "taux de qualité"}.
+                                        </p>
+                                      </div>
+                                      
+                                      <div className="bg-yellow-50/60 rounded-lg p-3 border border-yellow-200">
+                                        <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette Optimiste vs Pessimiste</p>
+                                        <p className="text-xs leading-relaxed">
+                                          <strong>Optimiste</strong> : Marché stable, concurrence faible → impact modéré sur le KPI<br/>
+                                          <strong>Pessimiste</strong> : Marché volatil, forte concurrence → impact élevé sur le KPI
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3 text-sm text-indigo-800">
+                                      <div className="bg-white/60 rounded-lg p-3 border border-indigo-100">
+                                        <p className="font-bold mb-1.5 text-indigo-900">🔻 Baisse de marge = Plus compétitif</p>
+                                        <p className="text-xs leading-relaxed">
+                                          En baissant votre marge, vous {project.inputMode === "CPM Cost" ? "baissez votre CPM Revenu" : "augmentez votre CPM Cost"}. 
+                                          Vous devenez <strong>plus compétitif aux enchères</strong> → vous gagnez plus d'impressions de meilleure qualité → 
+                                          {isFin 
+                                            ? " votre coût par conversion (KPI) baisse car vous achetez plus de volume qualifié."
+                                            : " votre taux de qualité (CTR, Viewability) augmente car vous touchez une audience plus large."
+                                          }
+                                        </p>
+                                      </div>
+                                      
+                                      <div className="bg-emerald-50/60 rounded-lg p-3 border border-emerald-200">
+                                        <p className="font-bold mb-1.5 text-emerald-900">🚀 Option 2 = Double effet</p>
+                                        <p className="text-xs leading-relaxed">
+                                          {option2_explanation}. En combinant <strong>baisse de marge + hausse de bid</strong>, 
+                                          vous maximisez votre impact sur le {isFin ? "volume de conversions" : "taux de qualité"}.
+                                        </p>
+                                      </div>
+                                      
+                                      <div className="bg-yellow-50/60 rounded-lg p-3 border border-yellow-200">
+                                        <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette Optimiste vs Pessimiste</p>
+                                        <p className="text-xs leading-relaxed">
+                                          <strong>Optimiste</strong> : Le marché répond bien, vous captez beaucoup de volume qualifié<br/>
+                                          <strong>Pessimiste</strong> : Le marché est saturé, l'impact est plus modéré que prévu
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
