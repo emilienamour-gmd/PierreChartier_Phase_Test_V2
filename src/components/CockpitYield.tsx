@@ -10,7 +10,6 @@ interface CockpitYieldProps {
   onChange: (project: ProjectData) => void;
 }
 
-// 🔧 INTERFACE TEMPORAIRE POUR L'OPTIMISATION
 interface OptimizationItem extends LineItem {
   perfRatio?: number;
   perfCategory?: "dead" | "underperforming" | "ok" | "good" | "star";
@@ -98,7 +97,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     };
   };
 
-  // 🗑️ FONCTION : SUPPRIMER UNE ENTRÉE HISTORIQUE
   const handleDeleteHistoryEntry = (index: number) => {
     if (!confirm("⚠️ Supprimer cette entrée de l'historique ? Cette action est irréversible.")) {
       return;
@@ -107,13 +105,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     const entryToDelete = project.history?.[index];
     if (!entryToDelete) return;
 
-    // Copie de l'historique sans l'entrée supprimée
     const newHistory = [...(project.history || [])];
     newHistory.splice(index, 1);
 
     let updatedProject = { ...project, history: newHistory };
 
-    // Si c'est un DAILY_UPDATE, supprimer aussi de dailyEntries
     if (entryToDelete.action === "DAILY_UPDATE" && entryToDelete.note) {
       const dateMatch = entryToDelete.note.match(/(\d{2}\/\d{2}\/\d{4})/);
       if (dateMatch) {
@@ -126,13 +122,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         
         updatedProject.dailyEntries = newDailyEntries;
         
-        // Recalculer le budget dépensé
         const newBudgetSpent = newDailyEntries.reduce((sum, e) => sum + e.budgetSpent, 0);
         updatedProject.budgetSpent = newBudgetSpent;
       }
     }
 
-    // Si c'est une MARGIN_UP ou MARGIN_DOWN, supprimer de marginPeriods
     if (entryToDelete.action === "MARGIN_UP" || entryToDelete.action === "MARGIN_DOWN") {
       const newMarginPeriods = (project.marginPeriods || []).filter(
         period => Math.abs(new Date(period.startDate).getTime() - new Date(entryToDelete.timestamp).getTime()) > 5000
@@ -140,7 +134,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       
       updatedProject.marginPeriods = newMarginPeriods;
       
-      // Restaurer la marge précédente si possible
       if (newMarginPeriods.length > 0) {
         const lastPeriod = newMarginPeriods[newMarginPeriods.length - 1];
         updatedProject.margeInput = lastPeriod.marginPct;
@@ -302,245 +295,219 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     reader.readAsBinaryString(file);
   };
 
- const handleOptimize = () => {
-  if (!marginGoal) {
-    alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
-    return;
-  }
+  const handleOptimize = () => {
+    if (!marginGoal) {
+      alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
+      return;
+    }
 
-  const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
-  
-  const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
-  const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
-  const availableSpend = Math.max(0, totalSpend - lockedSpend);
-  
-  // ========== ÉTAPE 1 : ANALYSE INTELLIGENTE DES LIGNES ==========
-  const analyzedItems: OptimizationItem[] = project.lineItems.map(li => {
-    const actual = li.kpiActual || 0;
-    const target = project.targetKpi || 0.0001;
+    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
-    let perfRatio = 1;
-    let perfCategory: "dead" | "underperforming" | "ok" | "good" | "star" = "ok";
+    const lockedSpend = project.lineItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
+    const totalSpend = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
+    const availableSpend = Math.max(0, totalSpend - lockedSpend);
     
-    if (isFin) {
-      // KPI financier : plus bas = mieux
-      if (actual === 0) {
-        perfRatio = 0;
-        perfCategory = "dead";
+    const analyzedItems: OptimizationItem[] = project.lineItems.map(li => {
+      const actual = li.kpiActual || 0;
+      const target = project.targetKpi || 0.0001;
+      
+      let perfRatio = 1;
+      let perfCategory: "dead" | "underperforming" | "ok" | "good" | "star" = "ok";
+      
+      if (isFin) {
+        if (actual === 0) {
+          perfRatio = 0;
+          perfCategory = "dead";
+        } else {
+          perfRatio = target / actual;
+          if (perfRatio >= 1.5) perfCategory = "star";
+          else if (perfRatio >= 1.2) perfCategory = "good";
+          else if (perfRatio >= 0.9) perfCategory = "ok";
+          else if (perfRatio >= 0.7) perfCategory = "underperforming";
+          else perfCategory = "dead";
+        }
       } else {
-        perfRatio = target / actual;
-        if (perfRatio >= 1.5) perfCategory = "star";
-        else if (perfRatio >= 1.2) perfCategory = "good";
+        perfRatio = actual / target;
+        if (perfRatio >= 1.3) perfCategory = "star";
+        else if (perfRatio >= 1.1) perfCategory = "good";
         else if (perfRatio >= 0.9) perfCategory = "ok";
         else if (perfRatio >= 0.7) perfCategory = "underperforming";
         else perfCategory = "dead";
       }
-    } else {
-      // KPI de qualité : plus haut = mieux
-      perfRatio = actual / target;
-      if (perfRatio >= 1.3) perfCategory = "star";
-      else if (perfRatio >= 1.1) perfCategory = "good";
-      else if (perfRatio >= 0.9) perfCategory = "ok";
-      else if (perfRatio >= 0.7) perfCategory = "underperforming";
-      else perfCategory = "dead";
-    }
-    
-    return { ...li, perfRatio, perfCategory };
-  });
-  
-  // ========== ÉTAPE 2 : STRATÉGIES D'OPTIMISATION PAR CATÉGORIE ==========
-  let optimizedItems: OptimizationItem[] = analyzedItems.map(li => {
-    let newMargin = li.marginPct;
-    let newCpmRevenue = li.cpmRevenue;
-    let action = "";
-    
-    // Lignes verrouillées : ne pas toucher
-    if (lockedLines.has(li.id)) {
-      return { ...li, newMargin, newCpmRevenue, action: "🔒 Verrouillée" };
-    }
-    
-    // Stratégie selon la catégorie de performance
-    switch (li.perfCategory) {
-      case "dead":
-        // Ligne morte → couper drastiquement
-        if (marginGoal === "increase") {
-          newMargin = Math.min(95, li.marginPct + 15); // Augmenter marge max
-          newCpmRevenue = li.cpmRevenue * 0.8; // Baisser CPM Revenue
-          action = "💀 Ligne morte → Couper";
-        } else {
-          newMargin = Math.max(5, li.marginPct - 10); // Baisser marge pour tester
-          newCpmRevenue = li.cpmRevenue * 0.7; // Baisser CPM Revenue agressivement
-          action = "⚠️ Dernière chance → Test agressif";
-        }
-        break;
-        
-      case "underperforming":
-        // Ligne sous-performante → ajuster prudemment
-        if (marginGoal === "increase") {
-          newMargin = li.marginPct; // Ne pas toucher la marge
-          newCpmRevenue = li.cpmRevenue * 0.95; // Baisser légèrement CPM
-          action = "⚠️ Sous-perf → Prudence";
-        } else {
-          newMargin = Math.max(5, li.marginPct - 8); // Baisser marge significativement
-          newCpmRevenue = li.cpmRevenue * 0.85; // Baisser CPM pour améliorer KPI
-          action = "📉 Boost KPI → Baisse agressive";
-        }
-        break;
-        
-      case "ok":
-        // Ligne correcte → optimisation modérée
-        if (marginGoal === "increase") {
-          newMargin = li.marginPct + 3; // Augmenter modérément
-          newCpmRevenue = li.cpmRevenue * 1.02; // Monter légèrement CPM
-          action = "✓ OK → Optim modérée";
-        } else {
-          newMargin = Math.max(5, li.marginPct - 5); // Baisser modérément
-          newCpmRevenue = li.cpmRevenue * 0.95; // Baisser CPM modérément
-          action = "📊 OK → Ajust équilibré";
-        }
-        break;
-        
-      case "good":
-        // Ligne performante → exploiter
-        if (marginGoal === "increase") {
-          newMargin = li.marginPct + 6; // Augmenter significativement
-          newCpmRevenue = li.cpmRevenue * 1.05; // Monter CPM
-          action = "✅ Bonne → Exploiter";
-        } else {
-          newMargin = Math.max(10, li.marginPct - 3); // Baisser légèrement
-          newCpmRevenue = li.cpmRevenue * 0.98; // Maintenir CPM
-          action = "✅ Bonne → Maintenir";
-        }
-        break;
-        
-      case "star":
-        // Ligne star → maximiser
-        if (marginGoal === "increase") {
-          newMargin = li.marginPct + 10; // Augmenter massivement
-          newCpmRevenue = Math.min(
-            respectCpmCap ? project.cpmSoldCap : li.cpmRevenue * 1.15,
-            li.cpmRevenue * 1.1
-          );
-          action = "⭐ STAR → Maximiser !";
-        } else {
-          newMargin = li.marginPct; // Ne pas toucher la marge (déjà optimal)
-          newCpmRevenue = li.cpmRevenue; // Ne pas toucher le CPM
-          action = "⭐ STAR → Parfait !";
-        }
-        break;
-    }
-    
-    // Contraintes de marge
-    newMargin = Math.max(5, Math.min(95, newMargin));
-    
-    // Contrainte CPM Cap (si activée)
-    if (respectCpmCap) {
-      newCpmRevenue = Math.min(project.cpmSoldCap, newCpmRevenue);
-    }
-    
-    return { ...li, newMargin, newCpmRevenue, action };
-  });
-  
-  // ========== ÉTAPE 3 : RÉALLOCATION INTELLIGENTE DES BUDGETS ==========
-  // Calculer un score pour chaque ligne
-  const itemsWithScore: OptimizationItem[] = optimizedItems.map(item => {
-    if (lockedLines.has(item.id)) {
-      return { ...item, allocationScore: 0 }; // Score 0 pour les lignes verrouillées
-    }
-    
-    let baseScore = 0;
-    
-    // Score basé sur la catégorie de performance
-    switch (item.perfCategory) {
-      case "dead":
-        baseScore = isFin ? 0.1 : 0.05; // Presque rien
-        break;
-      case "underperforming":
-        baseScore = marginGoal === "increase" ? 0.3 : 0.6; // Plus si on baisse marge
-        break;
-      case "ok":
-        baseScore = 1.0; // Score de base
-        break;
-      case "good":
-        baseScore = marginGoal === "increase" ? 2.0 : 1.5;
-        break;
-      case "star":
-        baseScore = marginGoal === "increase" ? 5.0 : 2.5; // Score énorme si on augmente
-        break;
-    }
-    
-    // Bonus si la ligne aide à respecter le CPM Cap
-    let capBonus = 1.0;
-    if (respectCpmCap) {
-      const currentWeightedCpmRev = totalSpend > 0 
-        ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / totalSpend
-        : 0;
       
-      const cpmRevRatio = (item.newCpmRevenue || item.cpmRevenue) / project.cpmSoldCap;
+      return { ...li, perfRatio, perfCategory };
+    });
+    
+    let optimizedItems: OptimizationItem[] = analyzedItems.map(li => {
+      let newMargin = li.marginPct;
+      let newCpmRevenue = li.cpmRevenue;
+      let action = "";
       
-      if (currentWeightedCpmRev < project.cpmSoldCap) {
-        // On est sous le cap → privilégier les lignes avec CPM élevé
-        capBonus = 0.8 + (cpmRevRatio * 0.4); // Bonus si proche du cap
-      } else {
-        // On est au-dessus du cap → privilégier les lignes avec CPM bas
-        capBonus = 1.2 - (cpmRevRatio * 0.4); // Bonus si en-dessous du cap
+      if (lockedLines.has(li.id)) {
+        return { ...li, newMargin, newCpmRevenue, action: "🔒 Verrouillée" };
       }
       
-      capBonus = Math.max(0.5, Math.min(1.5, capBonus));
-    }
-    
-    // Bonus selon l'objectif de marge
-    const marginFactor = marginGoal === "increase" 
-      ? (1 + (item.newMargin || item.marginPct) / 100) 
-      : (2 - (item.newMargin || item.marginPct) / 100);
-    
-    const allocationScore = baseScore * capBonus * marginFactor;
-    
-    return { ...item, allocationScore, capAlignmentBonus: capBonus };
-  });
-  
-  // Répartition des budgets selon les scores
-  const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
-  const totalScore = unlockedItems.reduce((acc, li) => acc + (li.allocationScore || 0), 0);
-  
-  const finalItems: OptimizationItem[] = itemsWithScore.map(li => {
-    let finalSpend = li.spend || 0;
-    
-    if (!lockedLines.has(li.id)) {
-      // Réallocation selon le score
-      const theoreticalSpend = totalScore > 0 
-        ? ((li.allocationScore || 0) / totalScore) * availableSpend 
-        : (li.spend || 0);
+      switch (li.perfCategory) {
+        case "dead":
+          if (marginGoal === "increase") {
+            newMargin = Math.min(95, li.marginPct + 15);
+            newCpmRevenue = li.cpmRevenue * 0.8;
+            action = "💀 Ligne morte → Couper";
+          } else {
+            newMargin = Math.max(5, li.marginPct - 10);
+            newCpmRevenue = li.cpmRevenue * 0.7;
+            action = "⚠️ Dernière chance → Test agressif";
+          }
+          break;
+          
+        case "underperforming":
+          if (marginGoal === "increase") {
+            newMargin = li.marginPct;
+            newCpmRevenue = li.cpmRevenue * 0.95;
+            action = "⚠️ Sous-perf → Prudence";
+          } else {
+            newMargin = Math.max(5, li.marginPct - 8);
+            newCpmRevenue = li.cpmRevenue * 0.85;
+            action = "📉 Boost KPI → Baisse agressive";
+          }
+          break;
+          
+        case "ok":
+          if (marginGoal === "increase") {
+            newMargin = li.marginPct + 3;
+            newCpmRevenue = li.cpmRevenue * 1.02;
+            action = "✓ OK → Optim modérée";
+          } else {
+            newMargin = Math.max(5, li.marginPct - 5);
+            newCpmRevenue = li.cpmRevenue * 0.95;
+            action = "📊 OK → Ajust équilibré";
+          }
+          break;
+          
+        case "good":
+          if (marginGoal === "increase") {
+            newMargin = li.marginPct + 6;
+            newCpmRevenue = li.cpmRevenue * 1.05;
+            action = "✅ Bonne → Exploiter";
+          } else {
+            newMargin = Math.max(10, li.marginPct - 3);
+            newCpmRevenue = li.cpmRevenue * 0.98;
+            action = "✅ Bonne → Maintenir";
+          }
+          break;
+          
+        case "star":
+          if (marginGoal === "increase") {
+            newMargin = li.marginPct + 10;
+            newCpmRevenue = Math.min(
+              respectCpmCap ? project.cpmSoldCap : li.cpmRevenue * 1.15,
+              li.cpmRevenue * 1.1
+            );
+            action = "⭐ STAR → Maximiser !";
+          } else {
+            newMargin = li.marginPct;
+            newCpmRevenue = li.cpmRevenue;
+            action = "⭐ STAR → Parfait !";
+          }
+          break;
+      }
       
-      // Lissage 60/40 pour éviter les changements trop brutaux
-      // (moins que 70/30 pour être plus agressif)
-      finalSpend = (theoreticalSpend * 0.6) + ((li.spend || 0) * 0.4);
+      newMargin = Math.max(5, Math.min(95, newMargin));
       
-      // Contraintes min/max de changement
-      const maxChange = (li.spend || 0) * 0.8; // Max +/- 80% du budget actuel
-      const minSpend = Math.max(0, (li.spend || 0) - maxChange);
-      const maxSpend = (li.spend || 0) + maxChange;
+      if (respectCpmCap) {
+        newCpmRevenue = Math.min(project.cpmSoldCap, newCpmRevenue);
+      }
       
-      finalSpend = Math.max(minSpend, Math.min(maxSpend, finalSpend));
-    }
+      return { ...li, newMargin, newCpmRevenue, action };
+    });
     
-    return {
-      ...li,
-      id: li.id,
-      name: li.name,
-      spend: Number(finalSpend.toFixed(2)),
-      cpmRevenue: Number((li.newCpmRevenue || li.cpmRevenue).toFixed(2)),
-      marginPct: Number((li.newMargin || li.marginPct).toFixed(2)),
-      kpiActual: li.kpiActual,
-      action: li.action,
-      perfCategory: li.perfCategory,
-      perfRatio: li.perfRatio
-    };
-  });
-  
-  // ========== ÉTAPE 4 : VALIDATION ET AFFICHAGE ==========
-  setProposedOptimizations(finalItems);
-};
+    const itemsWithScore: OptimizationItem[] = optimizedItems.map(item => {
+      if (lockedLines.has(item.id)) {
+        return { ...item, allocationScore: 0 };
+      }
+      
+      let baseScore = 0;
+      
+      switch (item.perfCategory) {
+        case "dead":
+          baseScore = isFin ? 0.1 : 0.05;
+          break;
+        case "underperforming":
+          baseScore = marginGoal === "increase" ? 0.3 : 0.6;
+          break;
+        case "ok":
+          baseScore = 1.0;
+          break;
+        case "good":
+          baseScore = marginGoal === "increase" ? 2.0 : 1.5;
+          break;
+        case "star":
+          baseScore = marginGoal === "increase" ? 5.0 : 2.5;
+          break;
+      }
+      
+      let capBonus = 1.0;
+      if (respectCpmCap) {
+        const currentWeightedCpmRev = totalSpend > 0 
+          ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / totalSpend
+          : 0;
+        
+        const cpmRevRatio = (item.newCpmRevenue || item.cpmRevenue) / project.cpmSoldCap;
+        
+        if (currentWeightedCpmRev < project.cpmSoldCap) {
+          capBonus = 0.8 + (cpmRevRatio * 0.4);
+        } else {
+          capBonus = 1.2 - (cpmRevRatio * 0.4);
+        }
+        
+        capBonus = Math.max(0.5, Math.min(1.5, capBonus));
+      }
+      
+      const marginFactor = marginGoal === "increase" 
+        ? (1 + (item.newMargin || item.marginPct) / 100) 
+        : (2 - (item.newMargin || item.marginPct) / 100);
+      
+      const allocationScore = baseScore * capBonus * marginFactor;
+      
+      return { ...item, allocationScore, capAlignmentBonus: capBonus };
+    });
+    
+    const unlockedItems = itemsWithScore.filter(li => !lockedLines.has(li.id));
+    const totalScore = unlockedItems.reduce((acc, li) => acc + (li.allocationScore || 0), 0);
+    
+    const finalItems: OptimizationItem[] = itemsWithScore.map(li => {
+      let finalSpend = li.spend || 0;
+      
+      if (!lockedLines.has(li.id)) {
+        const theoreticalSpend = totalScore > 0 
+          ? ((li.allocationScore || 0) / totalScore) * availableSpend 
+          : (li.spend || 0);
+        
+        finalSpend = (theoreticalSpend * 0.6) + ((li.spend || 0) * 0.4);
+        
+        const maxChange = (li.spend || 0) * 0.8;
+        const minSpend = Math.max(0, (li.spend || 0) - maxChange);
+        const maxSpend = (li.spend || 0) + maxChange;
+        
+        finalSpend = Math.max(minSpend, Math.min(maxSpend, finalSpend));
+      }
+      
+      return {
+        ...li,
+        id: li.id,
+        name: li.name,
+        spend: Number(finalSpend.toFixed(2)),
+        cpmRevenue: Number((li.newCpmRevenue || li.cpmRevenue).toFixed(2)),
+        marginPct: Number((li.newMargin || li.marginPct).toFixed(2)),
+        kpiActual: li.kpiActual,
+        action: li.action,
+        perfCategory: li.perfCategory,
+        perfRatio: li.perfRatio
+      };
+    });
+    
+    setProposedOptimizations(finalItems);
+  };
 
   const applyOptimizations = () => {
     if (proposedOptimizations) {
@@ -608,84 +575,84 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </div>
           </div>
 
-         {/* 1. Campagne */}
-<div className="space-y-4">
-  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
-  <div>
-    <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
-    <select 
-      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-      value={project.currency}
-      onChange={(e) => updateField("currency", e.target.value)}
-    >
-      <option>€ (EUR)</option>
-      <option>$ (USD)</option>
-    </select>
-  </div>
-  <div>
-    <label className="block text-xs text-gray-500 mb-1.5 font-medium">
-      {project.inputMode === "CPM Cost" ? `Budget Total Rev (${currSym})` : `Budget Total (${currSym})`}
-    </label>
-    <input 
-      type="number" 
-      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-      value={project.budgetTotal}
-      onChange={(e) => updateField("budgetTotal", Number(e.target.value))}
-    />
-  </div>
-  <div>
-    <label className="block text-xs text-gray-500 mb-1.5 font-medium">
-      {project.inputMode === "CPM Cost" ? `Budget Dépensé Rev (${currSym})` : `Budget Dépensé (${currSym})`}
-    </label>
-    <input 
-      type="number" 
-      step="0.01"
-      className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-      value={project.budgetSpent.toFixed(2)}
-      onChange={(e) => updateField("budgetSpent", Number(e.target.value))}
-    />
-  </div>
-  
-  {project.inputMode === "CPM Cost" && (
-    <div>
-      <label className="block text-xs text-gray-500 mb-1.5 font-medium">
-        Budget Dépensé Cost ({currSym})
-      </label>
-      <div className="relative">
-        <input 
-          type="number"
-          className="w-full text-sm border-gray-200 bg-blue-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-blue-900"
-          value={(project.budgetSpent * (1 - currentMarginPctCalc / 100)).toFixed(2)}
-          readOnly
-        />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">
-          Auto
-        </div>
-      </div>
-      <div className="text-[10px] text-gray-500 mt-1.5 italic">
-        = Budget Dépensé Rev × (1 - Marge {currentMarginPctCalc.toFixed(2)}%)
-      </div>
-    </div>
-  )}
-  
-  <div>
-    <label className="block text-xs text-gray-500 mb-1.5 font-medium">Durée (Jours)</label>
-    <input 
-      type="range" 
-      min="0" max="365"
-      className="w-full accent-blue-600"
-      value={project.durationDays}
-      onChange={(e) => updateField("durationDays", Number(e.target.value))}
-    />
-    <div className="text-xs text-gray-500 mt-1 text-right font-medium">{project.durationDays} jours</div>
-  </div>
-  {project.durationDays > 0 && (
-    <div className="w-full bg-gray-100 rounded-full h-2 mt-2 overflow-hidden">
-      <div className="bg-blue-500 h-full rounded-full" style={{ width: `${pctProgress * 100}%` }}></div>
-      <div className="text-[10px] text-gray-400 mt-1.5 text-right font-medium">Jour {currentDay}/{project.durationDays}</div>
-    </div>
-  )}
-</div>
+          {/* 1. Campagne */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">1. Campagne</h3>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Devise</label>
+              <select 
+                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                value={project.currency}
+                onChange={(e) => updateField("currency", e.target.value)}
+              >
+                <option>€ (EUR)</option>
+                <option>$ (USD)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                {project.inputMode === "CPM Cost" ? `Budget Total Rev (${currSym})` : `Budget Total (${currSym})`}
+              </label>
+              <input 
+                type="number" 
+                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                value={project.budgetTotal}
+                onChange={(e) => updateField("budgetTotal", Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                {project.inputMode === "CPM Cost" ? `Budget Dépensé Rev (${currSym})` : `Budget Dépensé (${currSym})`}
+              </label>
+              <input 
+                type="number" 
+                step="0.01"
+                className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                value={project.budgetSpent.toFixed(2)}
+                onChange={(e) => updateField("budgetSpent", Number(e.target.value))}
+              />
+            </div>
+            
+            {project.inputMode === "CPM Cost" && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5 font-medium">
+                  Budget Dépensé Cost ({currSym})
+                </label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    className="w-full text-sm border-gray-200 bg-blue-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-bold text-blue-900"
+                    value={(project.budgetSpent * (1 - currentMarginPctCalc / 100)).toFixed(2)}
+                    readOnly
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-bold bg-blue-100 px-2 py-0.5 rounded">
+                    Auto
+                  </div>
+                </div>
+                <div className="text-[10px] text-gray-500 mt-1.5 italic">
+                  = Budget Dépensé Rev × (1 - Marge {currentMarginPctCalc.toFixed(2)}%)
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5 font-medium">Durée (Jours)</label>
+              <input 
+                type="range" 
+                min="0" max="365"
+                className="w-full accent-blue-600"
+                value={project.durationDays}
+                onChange={(e) => updateField("durationDays", Number(e.target.value))}
+              />
+              <div className="text-xs text-gray-500 mt-1 text-right font-medium">{project.durationDays} jours</div>
+            </div>
+            {project.durationDays > 0 && (
+              <div className="w-full bg-gray-100 rounded-full h-2 mt-2 overflow-hidden">
+                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${pctProgress * 100}%` }}></div>
+                <div className="text-[10px] text-gray-400 mt-1.5 text-right font-medium">Jour {currentDay}/{project.durationDays}</div>
+              </div>
+            )}
+          </div>
 
           {/* 2. Finance */}
           <div className="space-y-4 pt-6 border-t border-gray-100">
@@ -710,73 +677,73 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
             </div>
           </div>
 
-      {/* 3. Achat */}
-<div className="space-y-4 pt-6 border-t border-gray-100">
-  <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
-  <div className="grid grid-cols-2 gap-3">
-    <div>
-      <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Cost ({currSym})</label>
-      <input 
-        type="number" 
-        step="0.01"
-        className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-        value={
-          project.inputMode === "CPM Cost" 
-            ? project.cpmCostActuel.toFixed(2)
-            : cpmCostActuelCalc.toFixed(2)
-        }
-        onChange={(e) => {
-          const newCpmCost = Number(e.target.value);
-          
-          if (project.inputMode === "CPM Cost") {
-            onChange({
-              ...project,
-              cpmCostActuel: newCpmCost
-            });
-          } else {
-            const newMarge = project.cpmRevenueActual > 0 
-              ? ((project.cpmRevenueActual - newCpmCost) / project.cpmRevenueActual) * 100
-              : 0;
-            onChange({
-              ...project,
-              inputMode: "Marge %",
-              margeInput: newMarge
-            });
-          }
-        }}
-      />
-    </div>
-    <div>
-      <label className="block text-xs text-gray-500 mb-1.5 font-medium">Marge %</label>
-      <input 
-        type="number" 
-        step="0.5"
-        className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-        value={
-          project.inputMode === "Marge %" 
-            ? project.margeInput.toFixed(2)
-            : Math.round(currentMarginPctCalc)
-        }
-        onChange={(e) => {
-          const newMarge = Number(e.target.value);
-          
-          if (project.inputMode === "Marge %") {
-            onChange({
-              ...project,
-              margeInput: newMarge
-            });
-          } else {
-            const newCpmCost = project.cpmRevenueActual * (1 - newMarge / 100);
-            onChange({
-              ...project,
-              cpmCostActuel: newCpmCost
-            });
-          }
-        }}
-      />
-    </div>
-  </div>
-</div>
+          {/* 3. Achat */}
+          <div className="space-y-4 pt-6 border-t border-gray-100">
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider">3. Achat</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5 font-medium">CPM Cost ({currSym})</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={
+                    project.inputMode === "CPM Cost" 
+                      ? project.cpmCostActuel.toFixed(2)
+                      : cpmCostActuelCalc.toFixed(2)
+                  }
+                  onChange={(e) => {
+                    const newCpmCost = Number(e.target.value);
+                    
+                    if (project.inputMode === "CPM Cost") {
+                      onChange({
+                        ...project,
+                        cpmCostActuel: newCpmCost
+                      });
+                    } else {
+                      const newMarge = project.cpmRevenueActual > 0 
+                        ? ((project.cpmRevenueActual - newCpmCost) / project.cpmRevenueActual) * 100
+                        : 0;
+                      onChange({
+                        ...project,
+                        inputMode: "Marge %",
+                        margeInput: newMarge
+                      });
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1.5 font-medium">Marge %</label>
+                <input 
+                  type="number" 
+                  step="0.5"
+                  className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={
+                    project.inputMode === "Marge %" 
+                      ? project.margeInput.toFixed(2)
+                      : Math.round(currentMarginPctCalc)
+                  }
+                  onChange={(e) => {
+                    const newMarge = Number(e.target.value);
+                    
+                    if (project.inputMode === "Marge %") {
+                      onChange({
+                        ...project,
+                        margeInput: newMarge
+                      });
+                    } else {
+                      const newCpmCost = project.cpmRevenueActual * (1 - newMarge / 100);
+                      onChange({
+                        ...project,
+                        cpmCostActuel: newCpmCost
+                      });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* 4. KPI */}
           <div className="space-y-4 pt-6 border-t border-gray-100">
@@ -799,26 +766,26 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                 <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Fenêtres d'Attribution</div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                      <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
-                        <MousePointer2 className="w-3 h-3"/> Post-Clic (J)
-                      </label>
-                      <input 
-                        type="number" min="0" max="30"
-                        className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
-                        value={attrClick}
-                        onChange={(e) => setAttrClick(Number(e.target.value))}
-                      />
+                    <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
+                      <MousePointer2 className="w-3 h-3"/> Post-Clic (J)
+                    </label>
+                    <input 
+                      type="number" min="0" max="30"
+                      className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
+                      value={attrClick}
+                      onChange={(e) => setAttrClick(Number(e.target.value))}
+                    />
                   </div>
                   <div>
-                      <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
-                        <Clock className="w-3 h-3"/> Post-View (J)
-                      </label>
-                      <input 
-                        type="number" min="0" max="30"
-                        className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
-                        value={attrView}
-                        onChange={(e) => setAttrView(Number(e.target.value))}
-                      />
+                    <label className="block text-[10px] text-gray-500 mb-1 font-bold flex items-center gap-1">
+                      <Clock className="w-3 h-3"/> Post-View (J)
+                    </label>
+                    <input 
+                      type="number" min="0" max="30"
+                      className="w-full text-xs border-gray-200 bg-white rounded-md p-2 border outline-none"
+                      value={attrView}
+                      onChange={(e) => setAttrView(Number(e.target.value))}
+                    />
                   </div>
                 </div>
               </div>
@@ -859,7 +826,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
         {isSidebarOpen ? <ChevronLeft className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
       </button>
 
-      {/* Main Dashboard */}
+      {/* Main Dashboard - SUITE DE LA PARTIE 1 */}
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-6xl mx-auto space-y-8">
           
@@ -991,14 +958,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       onChange={(e) => updateUplift(Number(e.target.value))}
                     />
 
-                    {/* Bloc Calculation IIFE */}
                     {(() => {
                       const newMargin = currentMarginPctCalc + uplift;
                       const tmcp = newMargin < 100 ? (newMargin / (100 - newMargin)) * 100 : 0;
-
                       const budgetRestant = project.budgetTotal - project.budgetSpent;
                       const costDejaDepense = project.budgetSpent * (1 - currentMarginPctCalc / 100);
-                      
                       let costDSP = 0;
                       let totalCostDSP = 0;
 
@@ -1030,14 +994,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 <div className="text-[10px] text-gray-400 mt-1">
                                   {uplift >= 0 ? "Budget restant seulement" : "Cost total (dépensé + restant)"}
                                 </div>
-                                
                                 {uplift > 0 && (
-                                   <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
-                                     <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
-                                     <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
-                                       {totalCostDSP.toFixed(2)} {currSym}
-                                     </div>
-                                   </div>
+                                  <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase">Total Budget à saisir</div>
+                                    <div className="text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded inline-block mt-0.5">
+                                      {totalCostDSP.toFixed(2)} {currSym}
+                                    </div>
+                                  </div>
                                 )}
                               </>
                             ) : (
@@ -1050,6 +1013,144 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </div>
                       );
                     })()}
+
+                    {/* 📊 PROJECTION KPI AVEC 2 OPTIONS - NOUVELLE SECTION */}
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
+                      <h4 className="font-bold text-purple-900 mb-4 flex items-center gap-2">
+                        <Target className="w-5 h-5" />
+                        Impact sur le {project.kpiType} Objectif
+                      </h4>
+                      <p className="text-sm text-purple-700 mb-6">
+                        Fourchette d'impact selon votre stratégie d'enchères
+                      </p>
+
+                      {(() => {
+                        const newMargin = currentMarginPctCalc + uplift;
+                        const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+                        
+                        const option1_cpmCost = cpmCostActuelCalc;
+                        const option1_cpmRevenue = option1_cpmCost / (1 - newMargin / 100);
+                        
+                        const option2_cpmCost = cpmCostActuelCalc * (uplift > 0 ? 0.95 : 1.05);
+                        const option2_cpmRevenue = option2_cpmCost / (1 - newMargin / 100);
+                        
+                        const option1_kpi = project.actualKpi;
+                        const option2_kpi = isFin 
+                          ? project.actualKpi * (option2_cpmCost / cpmCostActuelCalc)
+                          : project.actualKpi * (1 + (cpmCostActuelCalc - option2_cpmCost) / cpmCostActuelCalc * 0.3);
+                        
+                        const targetKpi = project.targetKpi;
+                        
+                        return (
+                          <div className="grid grid-cols-2 gap-4">
+                            {/* OPTION 1 */}
+                            <div className="bg-white border-2 border-purple-200 rounded-xl p-5">
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-black">1</div>
+                                <div>
+                                  <h5 className="font-bold text-purple-900">Bid Stable</h5>
+                                  <p className="text-xs text-purple-600">CPM Cost constant</p>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div className="bg-purple-50 rounded-lg p-3">
+                                  <div className="text-xs text-purple-600 mb-1">CPM Cost (Bid)</div>
+                                  <div className="text-lg font-black text-purple-900">{option1_cpmCost.toFixed(2)} {currSym}</div>
+                                  <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
+                                </div>
+                                
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
+                                  <div className="text-sm font-bold text-gray-900">{option1_cpmRevenue.toFixed(2)} {currSym}</div>
+                                </div>
+                                
+                                <div className={cn(
+                                  "rounded-lg p-3 border-2",
+                                  isFin 
+                                    ? (option1_kpi <= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
+                                    : (option1_kpi >= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
+                                )}>
+                                  <div className="text-xs font-bold mb-1 flex items-center justify-between">
+                                    <span className={isFin ? (option1_kpi <= targetKpi ? "text-emerald-700" : "text-red-700") : (option1_kpi >= targetKpi ? "text-emerald-700" : "text-red-700")}>
+                                      {project.kpiType} Projeté
+                                    </span>
+                                    {isFin 
+                                      ? (option1_kpi <= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
+                                      : (option1_kpi >= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
+                                    }
+                                  </div>
+                                  <div className={cn("text-2xl font-black", 
+                                    isFin 
+                                      ? (option1_kpi <= targetKpi ? "text-emerald-600" : "text-red-600")
+                                      : (option1_kpi >= targetKpi ? "text-emerald-600" : "text-red-600")
+                                  )}>
+                                    {option1_kpi.toFixed(3)}
+                                  </div>
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    Objectif : {targetKpi.toFixed(3)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* OPTION 2 */}
+                            <div className="bg-white border-2 border-pink-200 rounded-xl p-5">
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
+                                <div>
+                                  <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
+                                  <p className="text-xs text-pink-600">Plus volatile</p>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div className="bg-pink-50 rounded-lg p-3">
+                                  <div className="text-xs text-pink-600 mb-1">CPM Cost (Bid)</div>
+                                  <div className="text-lg font-black text-pink-900">{option2_cpmCost.toFixed(2)} {currSym}</div>
+                                  <div className={cn("text-xs font-bold mt-1", option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-red-600")}>
+                                    {option2_cpmCost < cpmCostActuelCalc ? "↓" : "↑"} {Math.abs(((option2_cpmCost / cpmCostActuelCalc - 1) * 100)).toFixed(1)}%
+                                  </div>
+                                </div>
+                                
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
+                                  <div className="text-sm font-bold text-gray-900">{option2_cpmRevenue.toFixed(2)} {currSym}</div>
+                                </div>
+                                
+                                <div className={cn(
+                                  "rounded-lg p-3 border-2",
+                                  isFin 
+                                    ? (option2_kpi <= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
+                                    : (option2_kpi >= targetKpi ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")
+                                )}>
+                                  <div className="text-xs font-bold mb-1 flex items-center justify-between">
+                                    <span className={isFin ? (option2_kpi <= targetKpi ? "text-emerald-700" : "text-red-700") : (option2_kpi >= targetKpi ? "text-emerald-700" : "text-red-700")}>
+                                      {project.kpiType} Projeté
+                                    </span>
+                                    {isFin 
+                                      ? (option2_kpi <= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
+                                      : (option2_kpi >= targetKpi ? <span className="text-emerald-600">✓</span> : <span className="text-red-600">✗</span>)
+                                    }
+                                  </div>
+                                  <div className={cn("text-2xl font-black", 
+                                    isFin 
+                                      ? (option2_kpi <= targetKpi ? "text-emerald-600" : "text-red-600")
+                                      : (option2_kpi >= targetKpi ? "text-emerald-600" : "text-red-600")
+                                  )}>
+                                    {option2_kpi.toFixed(3)}
+                                  </div>
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    Objectif : {targetKpi.toFixed(3)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    {/* FIN PROJECTION KPI */}
                          
                     {/* Bouton Appliquer */}
                     <div className="flex justify-end mt-6">
@@ -1156,47 +1257,46 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                   </div>
 
                   <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl">
-  <div className="mb-4">
-    <h4 className="font-bold text-blue-900 mb-1">Objectif d'optimisation</h4>
-    <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
-  </div>
-  <div className="flex gap-2 mb-4">
-    <button 
-      onClick={() => setMarginGoal("increase")}
-      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
-    >
-      📈 Augmenter la Marge
-    </button>
-    <button 
-      onClick={() => setMarginGoal("decrease")}
-      className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
-    >
-      📉 Baisser la Marge (Boost KPI)
-    </button>
-  </div>
-  
-  {/* Contrainte CPM Cap */}
-  <div className="border-t border-blue-200 pt-4">
-    <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
-    <p className="text-xs text-blue-700 mb-3">Le CPM Vendu Cap est à <strong>{project.cpmSoldCap.toFixed(2)} {currSym}</strong></p>
-    <div className="flex gap-2">
-      <button 
-        onClick={() => setRespectCpmCap(true)}
-        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", respectCpmCap ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50")}
-      >
-        🛡️ Respecter le CPM Vendu
-        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation avec CPM moyen = Cap</div>
-      </button>
-      <button 
-        onClick={() => setRespectCpmCap(false)}
-        className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", !respectCpmCap ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50")}
-      >
-        🚀 Ne pas respecter le CPM Vendu
-        <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (sans contrainte)</div>
-      </button>
-    </div>
-  </div>
-</div>
+                    <div className="mb-4">
+                      <h4 className="font-bold text-blue-900 mb-1">Objectif d'optimisation</h4>
+                      <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
+                    </div>
+                    <div className="flex gap-2 mb-4">
+                      <button 
+                        onClick={() => setMarginGoal("increase")}
+                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
+                      >
+                        📈 Augmenter la Marge
+                      </button>
+                      <button 
+                        onClick={() => setMarginGoal("decrease")}
+                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
+                      >
+                        📉 Baisser la Marge (Boost KPI)
+                      </button>
+                    </div>
+                    
+                    <div className="border-t border-blue-200 pt-4">
+                      <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
+                      <p className="text-xs text-blue-700 mb-3">Le CPM Vendu Cap est à <strong>{project.cpmSoldCap.toFixed(2)} {currSym}</strong></p>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setRespectCpmCap(true)}
+                          className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", respectCpmCap ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50")}
+                        >
+                          🛡️ Respecter le CPM Vendu
+                          <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation avec CPM moyen = Cap</div>
+                        </button>
+                        <button 
+                          onClick={() => setRespectCpmCap(false)}
+                          className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors", !respectCpmCap ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 border border-purple-200 hover:bg-purple-50")}
+                        >
+                          🚀 Ne pas respecter le CPM Vendu
+                          <div className="text-[10px] font-normal mt-1 opacity-90">Optimisation flexible (sans contrainte)</div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="flex justify-end">
                     <button 
@@ -1208,7 +1308,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                     </button>
                   </div>
 
-{proposedOptimizations && (
+                  {proposedOptimizations && (
                     <>
                       <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
                         <table className="w-full text-sm text-left">
@@ -1282,107 +1382,106 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
                       <div className="mt-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                         <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-3">
-                            <div className="bg-indigo-100 p-2 rounded-lg">
-                                <Activity className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <h4 className="text-lg font-bold text-gray-900">Impact Projeté</h4>
+                          <div className="bg-indigo-100 p-2 rounded-lg">
+                            <Activity className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <h4 className="text-lg font-bold text-gray-900">Impact Projeté</h4>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-8">
-                            <div>
-                                {(() => {
-                                    const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
-                                    const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
-                                    const oldWeightedCpmRev = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / oldTotalSpend : 0;
-                                    
-                                    const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
-                                    const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
-                                    const newWeightedCpmRev = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / newTotalSpend : 0;
-                                    
-                                    const marginDiff = newWeightedMargin - oldWeightedMargin;
-                                    const cpmRevDiff = newWeightedCpmRev - oldWeightedCpmRev;
-                                    const capDiff = newWeightedCpmRev - project.cpmSoldCap;
-                                    
-                                    const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
-                                    const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
-                                    const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
+                          <div>
+                            {(() => {
+                              const oldTotalSpend = project.lineItems.reduce((acc, l) => acc + (l.spend || 0), 0);
+                              const oldWeightedMargin = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / oldTotalSpend : 0;
+                              const oldWeightedCpmRev = oldTotalSpend > 0 ? project.lineItems.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / oldTotalSpend : 0;
+                              
+                              const newTotalSpend = proposedOptimizations.reduce((acc, l) => acc + (l.spend || 0), 0);
+                              const newWeightedMargin = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.marginPct, 0) / newTotalSpend : 0;
+                              const newWeightedCpmRev = newTotalSpend > 0 ? proposedOptimizations.reduce((acc, l) => acc + (l.spend||0)*l.cpmRevenue, 0) / newTotalSpend : 0;
+                              
+                              const marginDiff = newWeightedMargin - oldWeightedMargin;
+                              const cpmRevDiff = newWeightedCpmRev - oldWeightedCpmRev;
+                              const capDiff = newWeightedCpmRev - project.cpmSoldCap;
+                              
+                              const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+                              const kpiOptimistic = isFin ? project.actualKpi * 0.9 : project.actualKpi * 1.1;
+                              const kpiPessimistic = isFin ? project.actualKpi * 1.05 : project.actualKpi * 0.95;
 
-                                    return (
-                                        <div className="space-y-6">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                                    <div className="text-xs text-gray-500 mb-1">Nouvelle Marge Globale</div>
-                                                    <div className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
-                                                        {newWeightedMargin.toFixed(2)} %
-                                                    </div>
-                                                    <div className="text-xs text-gray-400 mt-1">
-                                                        ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)} pts)
-                                                    </div>
-                                                </div>
-                                                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                                    <div className="text-xs text-gray-500 mb-1">Total Dépense</div>
-                                                    <div className="text-xl font-black text-gray-900">
-                                                        {newTotalSpend.toFixed(2)} {currSym}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className={cn("p-3 rounded-lg border", 
-                                                  respectCpmCap && Math.abs(capDiff) <= 0.1 ? "bg-emerald-50 border-emerald-200" : "bg-indigo-50 border-indigo-100"
-                                                )}>
-                                                    <div className="text-xs font-bold text-indigo-800 mb-1 flex items-center justify-between">
-                                                      <span>CPM Revenu Moyen</span>
-                                                      {respectCpmCap && Math.abs(capDiff) <= 0.1 && <span className="text-emerald-600">✓</span>}
-                                                    </div>
-                                                    <div className="text-lg font-black text-indigo-600">
-                                                        {newWeightedCpmRev.toFixed(2)} {currSym}
-                                                    </div>
-                                                    <div className="text-xs text-indigo-500 mt-1">
-                                                      {respectCpmCap && (
-                                                        <>Cap: {project.cpmSoldCap.toFixed(2)} {currSym} (écart: {capDiff > 0 ? "+" : ""}{capDiff.toFixed(2)})</>
-                                                      )}
-                                                    </div>
-                                                </div>
-                                                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                                                    <div className="text-xs font-bold text-emerald-800 mb-1">Projection KPI</div>
-                                                    <div className="flex justify-between items-end">
-                                                        <div className="text-xs text-emerald-600">
-                                                            Pess: <strong>{fmtKpi(kpiPessimistic)}</strong>
-                                                        </div>
-                                                        <div className="text-xs text-emerald-600">
-                                                            Opt: <strong>{fmtKpi(kpiOptimistic)}</strong>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                            <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
-                                <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
-                                {respectCpmCap ? (
-                                  <div>
-                                    <p className="mb-2">
-                                      🛡️ <strong>Mode Respecter le Cap</strong> : L'algorithme répartit intelligemment les budgets pour atteindre le CPM Vendu Cap en moyenne pondérée.
-                                    </p>
-                                    <p>
-                                      Les lignes performantes reçoivent plus de budget et peuvent monter jusqu'au Cap, tandis que les lignes moins performantes compensent avec des CPM Revenue plus bas.
-                                    </p>
+                              return (
+                                <div className="space-y-6">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                      <div className="text-xs text-gray-500 mb-1">Nouvelle Marge Globale</div>
+                                      <div className={cn("text-xl font-black", marginDiff >= 0 ? "text-blue-600" : "text-amber-600")}>
+                                        {newWeightedMargin.toFixed(2)} %
+                                      </div>
+                                      <div className="text-xs text-gray-400 mt-1">
+                                        ({marginDiff > 0 ? "+" : ""}{marginDiff.toFixed(2)} pts)
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                      <div className="text-xs text-gray-500 mb-1">Total Dépense</div>
+                                      <div className="text-xl font-black text-gray-900">
+                                        {newTotalSpend.toFixed(2)} {currSym}
+                                      </div>
+                                    </div>
                                   </div>
-                                ) : (
-                                  <p>
-                                    🚀 <strong>Mode Liberté totale</strong> : {marginGoal === "increase" 
-                                      ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
-                                      : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
-                                  </p>
-                                )}
-                            </div>
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className={cn("p-3 rounded-lg border", 
+                                      respectCpmCap && Math.abs(capDiff) <= 0.1 ? "bg-emerald-50 border-emerald-200" : "bg-indigo-50 border-indigo-100"
+                                    )}>
+                                      <div className="text-xs font-bold text-indigo-800 mb-1 flex items-center justify-between">
+                                        <span>CPM Revenu Moyen</span>
+                                        {respectCpmCap && Math.abs(capDiff) <= 0.1 && <span className="text-emerald-600">✓</span>}
+                                      </div>
+                                      <div className="text-lg font-black text-indigo-600">
+                                        {newWeightedCpmRev.toFixed(2)} {currSym}
+                                      </div>
+                                      <div className="text-xs text-indigo-500 mt-1">
+                                        {respectCpmCap && (
+                                          <>Cap: {project.cpmSoldCap.toFixed(2)} {currSym} (écart: {capDiff > 0 ? "+" : ""}{capDiff.toFixed(2)})</>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                                      <div className="text-xs font-bold text-emerald-800 mb-1">Projection KPI</div>
+                                      <div className="flex justify-between items-end">
+                                        <div className="text-xs text-emerald-600">
+                                          Pess: <strong>{fmtKpi(kpiPessimistic)}</strong>
+                                        </div>
+                                        <div className="text-xs text-emerald-600">
+                                          Opt: <strong>{fmtKpi(kpiOptimistic)}</strong>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          <div className="bg-gray-50 p-4 rounded-lg text-xs text-gray-600 leading-relaxed border border-gray-100 flex flex-col justify-center">
+                            <h5 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analyse Stratégique</h5>
+                            {respectCpmCap ? (
+                              <div>
+                                <p className="mb-2">
+                                  🛡️ <strong>Mode Respecter le Cap</strong> : L'algorithme répartit intelligemment les budgets pour atteindre le CPM Vendu Cap en moyenne pondérée.
+                                </p>
+                                <p>
+                                  Les lignes performantes reçoivent plus de budget et peuvent monter jusqu'au Cap, tandis que les lignes moins performantes compensent avec des CPM Revenue plus bas.
+                                </p>
+                              </div>
+                            ) : (
+                              <p>
+                                🚀 <strong>Mode Liberté totale</strong> : {marginGoal === "increase" 
+                                  ? "Consolidation des acquis. Le budget est réalloué vers les lignes à forte rentabilité." 
+                                  : "Offensive de volume. Sacrifier de la marge pour aller chercher plus de conversions."}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* NOUVEAU TABLEAU : ACTIONS DSP DÉTAILLÉES */}
                       <div className="mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-2xl p-6 shadow-lg">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-indigo-200">
                           <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
@@ -1405,7 +1504,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             const cpmChangePct = original.cpmRevenue > 0 ? (cpmChange / original.cpmRevenue) * 100 : 0;
                             const marginChange = opt.marginPct - original.marginPct;
                             
-                            // Déterminer la couleur selon la catégorie
                             const categoryColor = 
                               opt.perfCategory === "star" ? "border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50" :
                               opt.perfCategory === "good" ? "border-emerald-400 bg-gradient-to-r from-emerald-50 to-green-50" :
@@ -1438,7 +1536,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-4 mb-4">
-                                  {/* Budget quotidien */}
                                   <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-bold text-gray-500 mb-1">💰 Budget Quotidien</div>
                                     <div className="flex items-baseline gap-2">
@@ -1451,7 +1548,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     </div>
                                   </div>
 
-                                  {/* CPM Target */}
                                   <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-bold text-gray-500 mb-1">🎯 CPM Revenue Target</div>
                                     <div className="flex items-baseline gap-2">
@@ -1464,7 +1560,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     </div>
                                   </div>
 
-                                  {/* Marge */}
                                   <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-bold text-gray-500 mb-1">📊 Marge Cible</div>
                                     <div className="flex items-baseline gap-2">
@@ -1478,7 +1573,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   </div>
                                 </div>
 
-                                {/* Recommandations DSP */}
                                 <div className="bg-white/80 rounded-lg p-4 border-2 border-dashed border-gray-300">
                                   <div className="flex items-center gap-2 mb-3">
                                     <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
@@ -1487,7 +1581,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     <h5 className="font-black text-gray-900 text-sm">Actions à faire dans le DSP :</h5>
                                   </div>
                                   <div className="space-y-2 text-sm">
-                                    {/* Recommandation Budget */}
                                     {Math.abs(budgetChangePct) > 5 && (
                                       <div className="flex items-start gap-2">
                                         <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center shrink-0 mt-0.5">
@@ -1502,7 +1595,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       </div>
                                     )}
 
-                                    {/* Recommandation CPM */}
                                     {Math.abs(cpmChangePct) > 2 && (
                                       <div className="flex items-start gap-2">
                                         <div className="w-5 h-5 bg-indigo-100 rounded flex items-center justify-center shrink-0 mt-0.5">
@@ -1517,7 +1609,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       </div>
                                     )}
 
-                                    {/* Recommandation Marge */}
                                     {Math.abs(marginChange) > 2 && (
                                       <div className="flex items-start gap-2">
                                         <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center shrink-0 mt-0.5">
@@ -1736,7 +1827,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                           minute: '2-digit'
                                         })}
                                       </div>
-                                      {/* 🗑️ BOUTON SUPPRIMER */}
                                       <button
                                         onClick={() => handleDeleteHistoryEntry(project.history!.length - 1 - idx)}
                                         className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
@@ -1754,12 +1844,40 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         {snap.marginPct.toFixed(2)} %
                                       </div>
                                     </div>
+                                    
+                                    {/* 🎯 BUDGET INTELLIGENT SELON TYPE D'ACTION */}
                                     <div className="bg-gray-50 p-3 rounded-lg">
-                                      <div className="text-xs text-gray-500 mb-1">Budget Dépensé</div>
+                                      <div className="text-xs text-gray-500 mb-1">
+                                        {snap.action === "DAILY_UPDATE" ? "Budget de l'entrée" : "Budget Cumulé"}
+                                      </div>
                                       <div className="text-lg font-black text-gray-900">
-                                        {snap.budgetSpent.toLocaleString()} {currSym}
+                                        {(() => {
+                                          if (snap.action === "DAILY_UPDATE" && snap.note) {
+                                            const dateMatch = snap.note.match(/(\d{2}\/\d{2}\/\d{4})/);
+                                            if (dateMatch && project.dailyEntries) {
+                                              const [day, month, year] = dateMatch[1].split('/');
+                                              const dateToFind = `${year}-${month}-${day}`;
+                                              const entry = project.dailyEntries.find(e => e.date === dateToFind);
+                                              if (entry) {
+                                                return `${entry.budgetSpent.toLocaleString()} ${currSym}`;
+                                              }
+                                            }
+                                          }
+                                          
+                                          if (snap.action === "MARGIN_UP" || snap.action === "MARGIN_DOWN") {
+                                            const currentIndex = project.history!.length - 1 - idx;
+                                            if (currentIndex > 0) {
+                                              const previousSnap = project.history![currentIndex - 1];
+                                              const budgetDiff = snap.budgetSpent - previousSnap.budgetSpent;
+                                              return `${budgetDiff.toLocaleString()} ${currSym}`;
+                                            }
+                                          }
+                                          
+                                          return `${snap.budgetSpent.toLocaleString()} ${currSym}`;
+                                        })()}
                                       </div>
                                     </div>
+                                    
                                     <div className="bg-gray-50 p-3 rounded-lg">
                                       <div className="text-xs text-gray-500 mb-1">CPM Cost</div>
                                       <div className="text-lg font-black text-gray-900">
@@ -1853,139 +1971,139 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
               )}
 
               {activeTab === "notes" && (
-  <div className="space-y-6">
-    {!project?.id ? (
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
-        <div className="text-4xl mb-3">⚠️</div>
-        <h4 className="font-bold text-amber-900 mb-2">Projet non sauvegardé</h4>
-        <p className="text-sm text-amber-700">
-          Vous devez sauvegarder votre projet avant de pouvoir ajouter des notes.
-        </p>
-      </div>
-    ) : (
-      <>
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">Notes de campagne</h3>
-          <div className="text-sm text-gray-500">
-            {project.notes?.length || 0} note(s)
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">✍️</span>
-            Ajouter une note
-          </h4>
-          <textarea
-            id="note-input"
-            placeholder="Écrivez votre note ici... (ex: Optimisation manuelle effectuée sur la ligne 'Display Mobile')"
-            className="w-full h-32 text-sm border-gray-200 bg-gray-50 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-          />
-          <div className="flex justify-end mt-3">
-            <button
-              onClick={() => {
-                const input = document.getElementById('note-input') as HTMLTextAreaElement;
-                const content = input?.value.trim();
-                
-                if (!content) {
-                  alert("Veuillez écrire une note avant de sauvegarder.");
-                  return;
-                }
-                
-                const newNote: ProjectNote = {
-                  id: Date.now().toString(),
-                  timestamp: new Date().toISOString(),
-                  content
-                };
-                
-                const updatedNotes = [...(project.notes || []), newNote];
-                
-                onChange({
-                  ...project,
-                  notes: updatedNotes,
-                  updatedAt: new Date().toISOString()
-                });
-                
-                input.value = '';
-                alert("✅ Note sauvegardée !");
-              }}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              💾 Sauvegarder la note
-            </button>
-          </div>
-        </div>
-
-        {(!project.notes || project.notes.length === 0) ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-            <div className="text-4xl mb-3">📝</div>
-            <h4 className="font-bold text-gray-700 mb-1">Aucune note</h4>
-            <p className="text-sm text-gray-500">
-              Ajoutez votre première note pour documenter vos optimisations.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {[...project.notes].reverse().map((note) => {
-              const date = new Date(note.timestamp);
-              const isToday = date.toDateString() === new Date().toDateString();
-              
-              return (
-                <div key={note.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                        📝
+                <div className="space-y-6">
+                  {!project?.id ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+                      <div className="text-4xl mb-3">⚠️</div>
+                      <h4 className="font-bold text-amber-900 mb-2">Projet non sauvegardé</h4>
+                      <p className="text-sm text-amber-700">
+                        Vous devez sauvegarder votre projet avant de pouvoir ajouter des notes.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-gray-900">Notes de campagne</h3>
+                        <div className="text-sm text-gray-500">
+                          {project.notes?.length || 0} note(s)
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                          {date.toLocaleDateString('fr-FR', { 
-                            weekday: 'long',
-                            day: 'numeric', 
-                            month: 'long', 
-                            year: 'numeric'
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">✍️</span>
+                          Ajouter une note
+                        </h4>
+                        <textarea
+                          id="note-input"
+                          placeholder="Écrivez votre note ici... (ex: Optimisation manuelle effectuée sur la ligne 'Display Mobile')"
+                          className="w-full h-32 text-sm border-gray-200 bg-gray-50 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                        />
+                        <div className="flex justify-end mt-3">
+                          <button
+                            onClick={() => {
+                              const input = document.getElementById('note-input') as HTMLTextAreaElement;
+                              const content = input?.value.trim();
+                              
+                              if (!content) {
+                                alert("Veuillez écrire une note avant de sauvegarder.");
+                                return;
+                              }
+                              
+                              const newNote: ProjectNote = {
+                                id: Date.now().toString(),
+                                timestamp: new Date().toISOString(),
+                                content
+                              };
+                              
+                              const updatedNotes = [...(project.notes || []), newNote];
+                              
+                              onChange({
+                                ...project,
+                                notes: updatedNotes,
+                                updatedAt: new Date().toISOString()
+                              });
+                              
+                              input.value = '';
+                              alert("✅ Note sauvegardée !");
+                            }}
+                            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                          >
+                            💾 Sauvegarder la note
+                          </button>
+                        </div>
+                      </div>
+
+                      {(!project.notes || project.notes.length === 0) ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+                          <div className="text-4xl mb-3">📝</div>
+                          <h4 className="font-bold text-gray-700 mb-1">Aucune note</h4>
+                          <p className="text-sm text-gray-500">
+                            Ajoutez votre première note pour documenter vos optimisations.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {[...project.notes].reverse().map((note) => {
+                            const date = new Date(note.timestamp);
+                            const isToday = date.toDateString() === new Date().toDateString();
+                            
+                            return (
+                              <div key={note.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                                      📝
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        {date.toLocaleDateString('fr-FR', { 
+                                          weekday: 'long',
+                                          day: 'numeric', 
+                                          month: 'long', 
+                                          year: 'numeric'
+                                        })}
+                                      </div>
+                                      <div className="text-xs text-gray-400 mt-0.5">
+                                        {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                        {isToday && (
+                                          <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                            AUJOURD'HUI
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm("Supprimer cette note ?")) {
+                                        const updatedNotes = project.notes?.filter(n => n.id !== note.id) || [];
+                                        onChange({
+                                          ...project,
+                                          notes: updatedNotes,
+                                          updatedAt: new Date().toISOString()
+                                        });
+                                      }
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                    {note.content}
+                                  </p>
+                                </div>
+                              </div>
+                            );
                           })}
                         </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
-                          {date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                          {isToday && (
-                            <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              AUJOURD'HUI
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (confirm("Supprimer cette note ?")) {
-                          const updatedNotes = project.notes?.filter(n => n.id !== note.id) || [];
-                          onChange({
-                            ...project,
-                            notes: updatedNotes,
-                            updatedAt: new Date().toISOString()
-                          });
-                        }
-                      }}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                      {note.content}
-                    </p>
-                  </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </>
-    )}
-  </div>
-)}
+              )}
             </div>
           </div>
         </div>
