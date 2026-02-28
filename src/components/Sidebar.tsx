@@ -15,7 +15,8 @@ import {
   BarChart3,
   TrendingUp,
   Percent,
-  DollarSign
+  DollarSign,
+  Target
 } from "lucide-react";
 import { cn } from "../utils/cn";
 import { ProjectData } from "../types";
@@ -63,7 +64,9 @@ function calculateAverageKPIs(project: ProjectData) {
       avgKpi: project.actualKpi,
       totalBudgetSpent: project.budgetSpent,
       entriesCount: 0,
-      currSym
+      currSym,
+      kpiType: project.kpiType,
+      targetKpi: project.targetKpi
     };
   }
 
@@ -89,7 +92,9 @@ function calculateAverageKPIs(project: ProjectData) {
     avgKpi: weightedKpi,
     totalBudgetSpent,
     entriesCount: project.dailyEntries.length,
-    currSym
+    currSym,
+    kpiType: project.kpiType,
+    targetKpi: project.targetKpi
   };
 }
 
@@ -187,6 +192,11 @@ export function Sidebar({
                               <TrendingUp className="w-3 h-3" />
                               <span>{kpis.avgCpmRevenue.toFixed(2)}</span>
                             </div>
+                            {/* 🎯 NOUVEAU : KPI Objectif moyen */}
+                            <div className="flex items-center gap-1 col-span-2">
+                              <Target className="w-3 h-3" />
+                              <span>{kpis.targetKpi.toFixed(2)} {kpis.kpiType}</span>
+                            </div>
                             <div className="flex items-center gap-1 col-span-2">
                               <DollarSign className="w-3 h-3" />
                               <span>{kpis.totalBudgetSpent.toFixed(0)} {kpis.currSym}</span>
@@ -219,6 +229,10 @@ export function Sidebar({
                             <div className="flex justify-between">
                               <span className="text-gray-400">{p.kpiType} moyen :</span>
                               <span className="font-bold">{kpis.avgKpi.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">{p.kpiType} objectif :</span>
+                              <span className="font-bold text-yellow-400">{kpis.targetKpi.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between pt-1.5 border-t border-gray-700">
                               <span className="text-gray-400">Budget total :</span>
