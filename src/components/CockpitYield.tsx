@@ -263,14 +263,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       const kpi = entry.kpiActual || 0;
 
       totalSpent += spent;
-      totalCost += (cost * spent) / (revenue || 1); // pondéré par spend
-      totalRevenue += (revenue * spent) / (revenue || 1); // pondéré
+      totalCost += cost * spent;        // ✅ CORRECT : Σ(CPM Cost × Budget)
+      totalRevenue += revenue * spent;  // ✅ CORRECT : Σ(CPM Revenue × Budget)
       totalGain += spent * (margin / 100);
       totalKpiWeighted += spent * kpi;
     });
 
-    const avgCpmCost = totalSpent > 0 ? totalCost / project.dailyEntries.length : cpmCostActuelCalc;
-    const avgCpmRevenue = totalSpent > 0 ? totalRevenue / project.dailyEntries.length : project.cpmRevenueActual;
+    // ✅ MOYENNES PONDÉRÉES CORRECTES : Σ(CPM × Budget) / Σ(Budget)
+    const avgCpmCost = totalSpent > 0 ? totalCost / totalSpent : cpmCostActuelCalc;
+    const avgCpmRevenue = totalSpent > 0 ? totalRevenue / totalSpent : project.cpmRevenueActual;
     const avgMargin = totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
     const avgKpi = totalSpent > 0 ? totalKpiWeighted / totalSpent : project.actualKpi;
 
