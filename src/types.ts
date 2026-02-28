@@ -34,10 +34,10 @@ export interface ProjectNote {
 export interface DailyEntry {
   id: string;
   date: string;
-  budgetSpent: number;
-  cpmRevenue: number;
-  marginPct: number;
-  kpi: number;
+  budgetSpent: number;    
+  cpmRevenue: number;     
+  marginPct: number;      
+  kpiActual: number;     
   appliedAt: string;
 }
 
