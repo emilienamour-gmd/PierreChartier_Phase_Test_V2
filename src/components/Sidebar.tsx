@@ -33,7 +33,6 @@ interface SidebarProps {
   user: UserProfile;
 }
 
-// Ordre inversé - "tracking" (Suivi Campagne) AVANT "cockpit" (Cockpit Yield)
 const NAV_ITEMS = [
   { id: "tracking", label: "Suivi Campagne", icon: Calendar },
   { id: "cockpit", label: "Cockpit Yield", icon: LayoutDashboard },
