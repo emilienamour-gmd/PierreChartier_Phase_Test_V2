@@ -1013,7 +1013,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
 
-                    {/* 🎯 ALGORITHME ULTRA-EXPERT CPA/CPV */}
+                    {/* 🎯 ALGORITHME ULTRA-EXPERT AVEC ATTRIBUTION DYNAMIQUE */}
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
                       <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                         <Target className="w-5 h-5" />
@@ -1029,7 +1029,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                         const isIncreasingMargin = uplift > 0;
                         
-                        // 🎯 COEFFICIENTS ULTRA-EXPERTS PAR KPI (20 ANS D'EXPERTISE)
+                        // 🔥 FACTEUR ATTRIBUTION DYNAMIQUE (CPA/CPV)
+                        const isAttributionKPI = project.kpiType === "CPA" || project.kpiType === "CPV";
+                        const attributionFactor = isAttributionKPI 
+                          ? (attrClick + attrView * 0.3) / 8  // Normalisé sur J+7 clic + J+1 view
+                          : 1.0;
+                        
+                        const isLongAttribution = attrClick > 14;
+                        
+                        // 🎯 COEFFICIENTS BASE PAR KPI
                         const getKPICoefficients = (kpiType: string) => {
                           const coeffs = {
                             CPCV: { 
@@ -1039,7 +1047,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               option2_marginUp: 0.13, option2_marginDown: 0.60
                             },
                             CPA: { 
-                              // 🔥 ULTRA-AGRESSIF - KPI CRITIQUE (EFFET MULTIPLICATEUR)
                               marginUp_base: 0.42, marginUp_volatility: 0.28, marginUp_competition: 0.38,
                               marginDown_base: 0.58, marginDown_volatility: 0.18, marginDown_competition: 0.28,
                               bidAdjust_up: 0.35, bidAdjust_down: 0.55,
@@ -1052,7 +1059,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               option2_marginUp: 0.16, option2_marginDown: 0.65
                             },
                             CPV: { 
-                              // 🔥 ULTRA-AGRESSIF - KPI CRITIQUE (QUALITÉ CONTEXTUELLE)
                               marginUp_base: 0.38, marginUp_volatility: 0.22, marginUp_competition: 0.30,
                               marginDown_base: 0.52, marginDown_volatility: 0.15, marginDown_competition: 0.22,
                               bidAdjust_up: 0.32, bidAdjust_down: 0.50,
@@ -1086,18 +1092,25 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                           return coeffs[kpiType as keyof typeof coeffs] || coeffs.CPA;
                         };
                         
-                        const kpiCoeffs = getKPICoefficients(project.kpiType);
+                        const baseCoeffs = getKPICoefficients(project.kpiType);
+                        
+                        // 🔥 APPLIQUER FACTEUR ATTRIBUTION
+                        const kpiCoeffs = isAttributionKPI ? {
+                          ...baseCoeffs,
+                          marginUp_base: baseCoeffs.marginUp_base * attributionFactor,
+                          marginDown_base: baseCoeffs.marginDown_base * attributionFactor,
+                          option2_marginDown: baseCoeffs.option2_marginDown * attributionFactor
+                        } : baseCoeffs;
                         
                         // ⭐ OPTION 1 : BID STABLE
                         const option1_cpmCost = cpmCostActuelCalc;
                         const option1_cpmRevenue = option1_cpmCost / (1 - newMargin / 100);
                         
-                        // 🚨 ALERTE CAP pour Option 1
                         const option1_exceedsCap = option1_cpmRevenue > project.cpmSoldCap;
                         const option1_excessAmount = option1_exceedsCap ? option1_cpmRevenue - project.cpmSoldCap : 0;
                         const option1_excessPct = option1_exceedsCap ? (option1_excessAmount / project.cpmSoldCap) * 100 : 0;
                         
-                        // ⭐ OPTION 2 : BID AJUSTÉ POUR RESPECTER LE CAP
+                        // ⭐ OPTION 2 : BID AJUSTÉ
                         let option2_cpmCost = cpmCostActuelCalc;
                         let option2_cpmRevenue = option1_cpmRevenue;
                         let option2_bidAdjustmentPct = 0;
@@ -1129,7 +1142,19 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             : `Pour maximiser le volume, montez votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (+${option2_bidAdjustmentPct.toFixed(1)}%)`;
                         }
                         
-                        // CALCUL DES KPIs PROJETÉS
+                        // 🔥 VOLATILITÉ OPTION 2 SELON SEUIL BID
+                        const bidChangeRatio = Math.abs((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc);
+                        
+                        let volatilityMultiplier = 1.0;
+                        if (bidChangeRatio > 0.50) {
+                          volatilityMultiplier = 2.0;
+                        } else if (bidChangeRatio > 0.30) {
+                          volatilityMultiplier = 1.5;
+                        } else if (bidChangeRatio > 0.20) {
+                          volatilityMultiplier = 1.25;
+                        }
+                        
+                        // CALCUL KPIs
                         let option1_kpi_optimistic, option1_kpi_pessimistic;
                         let option2_kpi_optimistic, option2_kpi_pessimistic;
                         
@@ -1150,6 +1175,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             const baseImpact2 = 1 - (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_volatility * 0.6);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_competition * 0.8);
+                            
+                            // 🔥 APPLIQUER VOLATILITÉ SUR OPTION 2
+                            const baseRange = option2_kpi_pessimistic - option2_kpi_optimistic;
+                            const center = (option2_kpi_pessimistic + option2_kpi_optimistic) / 2;
+                            option2_kpi_optimistic = center - (baseRange / 2) * volatilityMultiplier;
+                            option2_kpi_pessimistic = center + (baseRange / 2) * volatilityMultiplier;
                           }
                         } else {
                           if (isIncreasingMargin) {
@@ -1168,6 +1199,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             const baseImpact2 = 1 + (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_volatility * 0.6);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_competition * 0.8);
+                            
+                            // 🔥 APPLIQUER VOLATILITÉ SUR OPTION 2
+                            const baseRange = option2_kpi_pessimistic - option2_kpi_optimistic;
+                            const center = (option2_kpi_pessimistic + option2_kpi_optimistic) / 2;
+                            option2_kpi_optimistic = center - (baseRange / 2) * volatilityMultiplier;
+                            option2_kpi_pessimistic = center + (baseRange / 2) * volatilityMultiplier;
                           }
                         }
                         
@@ -1177,104 +1214,69 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const option2_meetsTarget_optimistic = isFin ? option2_kpi_optimistic <= targetKpi : option2_kpi_optimistic >= targetKpi;
                         const option2_meetsTarget_pessimistic = isFin ? option2_kpi_pessimistic <= targetKpi : option2_kpi_pessimistic >= targetKpi;
                         
-                        // 📚 EXPLICATIONS ULTRA-EXPERTES (20 ANS PROGRAMMATIQUE)
                         const getKPIExplanations = (kpiType: string, isIncreasing: boolean) => {
                           const explanations: any = {
                             CPCV: {
-                              up: {
-                                impact: "Le CPCV est très sensible au bid car il dépend de la qualité de l'inventaire vidéo. En baissant votre bid, vous accédez à un inventaire moins premium → completion rate baisse → CPCV augmente.",
-                                option2: "Baisser légèrement le bid permet de rester sur l'inventaire mid-tier tout en préservant un taux de completion acceptable. C'est le sweet spot pour ce KPI.",
-                                range: "Optimiste = inventaire stable avec bonne viewability. Pessimiste = shift vers inventaire low-tier avec faible completion."
-                              },
-                              down: {
-                                impact: "En augmentant votre bid, vous montez en qualité d'inventaire → meilleur engagement → completion rate augmente → CPCV baisse fortement.",
-                                option2: "Hausser le bid de manière agressive permet d'accéder à l'inventaire premium (in-stream, pre-roll quality publishers) → impact maximal sur le CPCV.",
-                                range: "Optimiste = accès inventaire premium immédiat. Pessimiste = compétition élevée, prix monte sans gain de completion proportionnel."
-                              }
+                              up: { impact: "Le CPCV est sensible au bid. En baissant, inventaire moins premium → completion rate baisse → CPCV augmente.", option2: "Baisser légèrement permet de rester sur mid-tier acceptable.", range: "Optimiste = inventaire stable. Pessimiste = shift low-tier." },
+                              down: { impact: "En augmentant bid, qualité inventaire → engagement → CPCV baisse.", option2: "Hausser permet d'accéder au premium in-stream.", range: "Optimiste = premium. Pessimiste = compétition." }
                             },
                             CPA: {
-                              up: {
-                                impact: "🔥 DANGER CRITIQUE : Le CPA dépend du volume de conversions. En baissant le bid, vous perdez du reach qualifié → EFFET MULTIPLICATEUR : moins d'impressions dans la fenêtre d'attribution (J+7 clic, J+1 view) → perte de touchpoints → MOINS DE CONVERSIONS → CPA EXPLOSE. Un -20% de bid peut causer un +50% de CPA à cause de la perte exponentielle de volume qualifié !",
-                                option2: "Ajuster légèrement le bid permet de maintenir un VOLUME CRITIQUE de touchpoints dans la fenêtre d'attribution tout en optimisant la marge. Le CPA reste maîtrisé grâce au volume PRÉSERVÉ. C'est une stratégie chirurgicale pour ce KPI ultra-sensible.",
-                                range: "Optimiste = votre pixel convertit bien même avec volume réduit (audiences très qualifiées). Pessimiste = PERTE DE CONVERSIONS INCRÉMENTALES → le CPA explose car vous sortez de la fenêtre d'attribution des prospects chauds (retargeting inefficace, perte d'assisted conversions)."
-                              },
-                              down: {
-                                impact: "🚀 OPPORTUNITÉ MAXIMALE : Plus de bid = PLUS DE REACH = multiplication des impressions dans la fenêtre d'attribution J+7 → EFFET MULTIPLICATEUR POSITIF : plus de touchpoints clic ET view → attribution multi-touch maximisée → EXPLOSION DES CONVERSIONS → CPA baisse dramatiquement. C'est le KPI où l'investissement bid rapporte le PLUS !",
-                                option2: "Combiner baisse de marge + hausse de bid AGRESSIVE crée un EFFET MULTIPLICATEUR sur le volume de conversions. C'est la stratégie la plus rentable pour le CPA : sacrifier de la marge maintenant pour obtenir un RATIO CONVERSIONS/COÛT optimal. Le bid boost permet d'accéder aux audiences premium pré-converteuses ET de maximiser le retargeting.",
-                                range: "Optimiste = vos audiences premium convertissent MASSIVEMENT avec le volume supplémentaire (lookalikes performent, retargeting explose). Pessimiste = le coût d'acquisition du volume mange PARTIELLEMENT les gains, mais le CPA baisse quand même grâce au volume de conversions incrémentales."
-                              }
+                              up: { impact: isLongAttribution ? `🔥 EXTRÊME (J+${attrClick}) : Fenêtre LONGUE → Impact MULTIPLIÉ. Perte reach MASSIVE → Sortie fenêtre J+${attrClick} → CPA EXPLOSE !` : `🔥 CRITIQUE : Perte reach → moins impressions fenêtre J+${attrClick} clic, J+${attrView} view → CPA EXPLOSE.`, option2: `Ajuster maintient VOLUME CRITIQUE fenêtre J+${attrClick}. Chirurgical.`, range: "Optimiste = pixel convertit. Pessimiste = PERTE CATASTROPHIQUE." },
+                              down: { impact: isLongAttribution ? `🚀 MAXIMAL (J+${attrClick}) : Fenêtre LONGUE → MULTIPLICATEUR ! Reach massif ${attrClick} jours → multi-touch MAXIMISÉ → EXPLOSION conversions !` : `🚀 OPPORTUNITÉ : Reach fenêtre J+${attrClick} → multiplication touchpoints → CPA baisse.`, option2: "Baisse marge + boost = MULTIPLICATEUR conversions. Plus rentable.", range: "Optimiste = MASSIF. Pessimiste = coût mange gains partiellement." }
                             },
                             CPC: {
-                              up: {
-                                impact: "Le CPC est ultra-compétitif. Baisser le bid = perte immédiate de positions premium → inventaire résiduel moins cliquable → CPC explose même avec moins de volume.",
-                                option2: "Sur le CPC, baisser modérément permet de rester dans le mid-funnel tout en évitant l'inventaire trash. C'est un équilibre précaire.",
-                                range: "Optimiste = votre créative performe bien même sur inventaire moyen. Pessimiste = shift brutal vers inventaire clickbait, CPC double."
-                              },
-                              down: {
-                                impact: "Monter le bid sur CPC = accès aux emplacements above-the-fold, native premium → CTR augmente → CPC baisse mécaniquement.",
-                                option2: "Hausser agressivement le bid permet d'écraser la compétition et sécuriser l'inventaire premium high-CTR. Impact maximal sur CPC.",
-                                range: "Optimiste = domination de l'inventaire premium, CPC s'effondre. Pessimiste = guerre des prix, CPC baisse moins que prévu."
-                              }
+                              up: { impact: "Ultra-compétitif. Baisser = perte positions → résiduel → CPC explose.", option2: "Modéré = mid-funnel.", range: "Optimiste = créative. Pessimiste = clickbait." },
+                              down: { impact: "Monter = above-fold, native premium → CTR ↑ → CPC baisse.", option2: "Agressif = écraser compétition.", range: "Optimiste = domination. Pessimiste = guerre prix." }
                             },
                             CPV: {
-                              up: {
-                                impact: "🔥 DANGER QUALITÉ : Le CPV (visite site) dépend du TRAFIC QUALIFIÉ. Moins de bid = moins de placements contextuels pertinents → SHIFT VERS INVENTAIRE LOW-INTENT → trafic bot, fraud, bounce rate 90% → le CPV peut sembler stable MAIS LA QUALITÉ S'EFFONDRE → moins de visites RÉELLES et engagées → CPV augmente sur le trafic qualifié réel.",
-                                option2: "Ajuster le bid permet de rester sur les placements mid-tier qui génèrent encore du trafic QUALIFIÉ contextuel sans surpayer. C'est un équilibre critique car sur le CPV, la QUALITÉ prime sur la QUANTITÉ. Mieux vaut 100 visites qualifiées que 500 visites poubelle.",
-                                range: "Optimiste = votre landing page convertit bien les visiteurs résiduels (strong call-to-action, fast loading). Pessimiste = TRAFIC LOW-INTENT domine → bounce 90%, time on site <10s, fraud detection trigger → CPV grimpe sur les visites réelles et le reste part en waste."
-                              },
-                              down: {
-                                impact: "🚀 BOOST QUALITÉ : Plus de bid = MEILLEUR CIBLAGE CONTEXTUEL = accès aux placements premium intent-based (in-content, native premium) → trafic ULTRA-QUALIFIÉ vers votre site → CPV baisse car BEAUCOUP PLUS de visites engagées (time on site élevé, pages/session >3, bounce <40%).",
-                                option2: "Combiner baisse marge + hausse bid AGRESSIVE permet de maximiser le volume de visites QUALIFIÉES. L'effet positif est GARANTI sur CPV car vous accédez aux inventaires premium contextual targeting (semantic analysis, brand-safe publishers). C'est un investissement qui rapporte IMMÉDIATEMENT en qualité de trafic.",
-                                range: "Optimiste = trafic ULTRA-QUALIFIÉ → CPV chute car explosion des visites engagées (conversion rate site +50%, lead generation maximisée). Pessimiste = volume UP significatif mais QUALITÉ MOYENNE → gain modéré de CPV, mais toujours positif grâce à l'élimination du trafic trash."
-                              }
+                              up: { impact: isLongAttribution ? `🔥 EXTRÊME (J+${attrClick}) : SHIFT MASSIF LOW-INTENT → bot/fraud dominant → CPV grimpe !` : `🔥 QUALITÉ : Moins placements contextuels → LOW-INTENT → qualité effondre.`, option2: `Ajuster = mid-tier QUALIFIÉ. Qualité > Quantité. 100 qualifiées > 500 poubelle.`, range: "Optimiste = landing convertit. Pessimiste = LOW-INTENT, bounce 90%, fraud." },
+                              down: { impact: isLongAttribution ? `🚀 MAXIMAL (J+${attrClick}) : Premium intent-based → ULTRA-QUALIFIÉ massif → CPV baisse + qualité EXPLOSE !` : `🚀 QUALITÉ : Meilleur contextuel → ULTRA-QUALIFIÉ → CPV baisse.`, option2: "Baisse + boost = volume QUALIFIÉ max. Immédiat.", range: "Optimiste = ULTRA-QUALIFIÉ, +50% conversion. Pessimiste = volume, qualité moyenne." }
                             },
                             CTR: {
-                              up: {
-                                impact: "Le CTR dépend surtout de la créative, mais l'inventaire joue un rôle. Moins de bid = inventaire moins visible → CTR baisse légèrement.",
-                                option2: "Sur le CTR, l'impact du bid est limité. L'ajustement permet juste d'éviter l'inventaire invisible (below-the-fold extrême).",
-                                range: "Optimiste = créative forte, CTR résiste. Pessimiste = inventaire médiocre, CTR baisse sensiblement."
-                              },
-                              down: {
-                                impact: "Plus de bid = meilleure visibilité (above-the-fold, formats natifs) → CTR augmente car plus d'exposition qualitative.",
-                                option2: "Hausser le bid améliore le CTR en sécurisant des emplacements premium, mais l'effet reste modéré car la créative reste le facteur #1.",
-                                range: "Optimiste = combinaison inventaire premium + créative forte = CTR en hausse. Pessimiste = gain marginal seulement."
-                              }
+                              up: { impact: "Dépend créative. Moins bid = moins visible → baisse légère.", option2: "Éviter invisible.", range: "Optimiste = forte. Pessimiste = médiocre." },
+                              down: { impact: "Plus bid = visibilité → CTR ↑.", option2: "Hausser = premium.", range: "Optimiste = combo. Pessimiste = marginal." }
                             },
                             VTR: {
-                              up: {
-                                impact: "Le VTR (video completion) dépend de l'inventaire vidéo. Moins de bid = inventaire outstream low-quality → VTR baisse nettement.",
-                                option2: "Ajuster le bid permet de rester sur l'inventaire in-stream mid-tier qui maintient un VTR acceptable sans surpayer.",
-                                range: "Optimiste = vidéo engageante, VTR résiste. Pessimiste = shift vers outstream trash, VTR s'effondre."
-                              },
-                              down: {
-                                impact: "Plus de bid = accès inventaire in-stream premium (pre-roll publishers quality) → VTR augmente fortement grâce à l'engagement naturel.",
-                                option2: "Hausser le bid de manière ciblée permet d'accéder à l'inventaire in-stream qui booste le VTR. Effet très positif.",
-                                range: "Optimiste = inventaire premium in-stream, VTR explose. Pessimiste = compétition forte, gain modéré."
-                              }
+                              up: { impact: "Moins = outstream low → VTR baisse.", option2: "Ajuster = in-stream mid.", range: "Optimiste = engageante. Pessimiste = outstream trash." },
+                              down: { impact: "Plus = in-stream premium → VTR ↑.", option2: "Hausser = in-stream.", range: "Optimiste = premium. Pessimiste = compétition." }
                             },
                             Viewability: {
-                              up: {
-                                impact: "La Viewability dépend peu du bid (c'est une métrique technique). L'impact est faible car même l'inventaire low-cost peut être viewable.",
-                                option2: "Sur la Viewability, l'ajustement de bid a un impact minimal. Ce KPI dépend plus du ciblage d'inventaire que du prix.",
-                                range: "Optimiste = inventaire reste viewable. Pessimiste = léger shift vers below-the-fold."
-                              },
-                              down: {
-                                impact: "Plus de bid = léger accès à l'inventaire premium mieux positionné → Viewability augmente marginalement.",
-                                option2: "Hausser le bid améliore un peu la Viewability en sécurisant des placements premium, mais l'effet est limité.",
-                                range: "Optimiste = gain marginal de Viewability. Pessimiste = quasi aucun impact."
-                              }
+                              up: { impact: "Dépend peu bid. Faible.", option2: "Minimal.", range: "Optimiste = stable. Pessimiste = léger shift." },
+                              down: { impact: "Plus = léger premium → marginal.", option2: "Un peu.", range: "Optimiste = marginal. Pessimiste = quasi rien." }
                             }
                           };
-                          const direction = isIncreasing ? 'up' : 'down';
-                          return explanations[kpiType]?.[direction] || explanations.CPA[direction];
+                          return explanations[kpiType]?.[isIncreasing ? 'up' : 'down'] || explanations.CPA[isIncreasing ? 'up' : 'down'];
                         };
                         
                         const kpiExplanations = getKPIExplanations(project.kpiType, isIncreasingMargin);
                         
                         return (
                           <div className="space-y-6">
+                            {isLongAttribution && isAttributionKPI && (
+                              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                                <div className="flex items-center gap-2 text-orange-900 mb-2">
+                                  <AlertTriangle className="w-5 h-5" />
+                                  <span className="font-black">FENÊTRE ATTRIBUTION LONGUE (J+{attrClick})</span>
+                                </div>
+                                <p className="text-sm text-orange-700">
+                                  Sensibilité EXTRÊME. Impact MULTIPLIÉ sur {project.kpiType}. Facteur: {attributionFactor.toFixed(2)}x
+                                </p>
+                              </div>
+                            )}
+                            
+                            {volatilityMultiplier > 1.0 && !isIncreasingMargin && (
+                              <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4">
+                                <div className="flex items-center gap-2 text-amber-900 mb-2">
+                                  <AlertTriangle className="w-5 h-5" />
+                                  <span className="font-black">BID BOOST ÉLEVÉ ({Math.abs(bidChangeRatio * 100).toFixed(0)}%)</span>
+                                </div>
+                                <p className="text-sm text-amber-700">
+                                  Fourchette Option 2 ÉLARGIE (×{volatilityMultiplier.toFixed(1)}). Résultats volatils → Surveiller !
+                                </p>
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-2 gap-4">
-                              {/* OPTION 1 - BID STABLE AVEC ALERTE CAP */}
                               <div className="bg-white border-2 border-purple-200 rounded-xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-black">1</div>
@@ -1291,10 +1293,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
                                   </div>
                                   
-                                  {/* 🚨 CPM REVENU AVEC ALERTE CAP */}
-                                  <div className={cn("rounded-lg p-3", 
-                                    option1_exceedsCap ? "bg-red-50 border-2 border-red-300" : "bg-gray-50"
-                                  )}>
+                                  <div className={cn("rounded-lg p-3", option1_exceedsCap ? "bg-red-50 border-2 border-red-300" : "bg-gray-50")}>
                                     <div className="flex items-center justify-between mb-1">
                                       <div className="text-xs text-gray-500">CPM Revenu</div>
                                       {option1_exceedsCap && (
@@ -1304,19 +1303,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         </div>
                                       )}
                                     </div>
-                                    <div className={cn("text-sm font-bold", 
-                                      option1_exceedsCap ? "text-red-700" : "text-gray-900"
-                                    )}>
+                                    <div className={cn("text-sm font-bold", option1_exceedsCap ? "text-red-700" : "text-gray-900")}>
                                       {option1_cpmRevenue.toFixed(2)} {currSym}
                                     </div>
                                     {option1_exceedsCap && (
                                       <div className="mt-2 pt-2 border-t border-red-200">
                                         <div className="text-[10px] text-red-600 font-bold">
-                                          Dépasse le Cap de {option1_excessAmount.toFixed(2)} {currSym} (+{option1_excessPct.toFixed(1)}%)
+                                          Dépasse {option1_excessAmount.toFixed(2)} {currSym} (+{option1_excessPct.toFixed(1)}%)
                                         </div>
-                                        <div className="text-[9px] text-red-500 mt-1">
-                                          ⚠️ Risque de refacturation client !
-                                        </div>
+                                        <div className="text-[9px] text-red-500 mt-1">⚠️ Risque refacturation !</div>
                                       </div>
                                     )}
                                   </div>
@@ -1327,30 +1322,22 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">FOURCHETTE</span>
                                     </div>
                                     
-                                    <div className={cn("mb-2 p-2 rounded border", 
-                                      option1_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
-                                    )}>
+                                    <div className={cn("mb-2 p-2 rounded border", option1_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300")}>
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] font-bold text-gray-600">😊 Optimiste</span>
                                         {option1_meetsTarget_optimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-orange-600 text-xs">⚠</span>}
                                       </div>
-                                      <div className={cn("text-lg font-black", 
-                                        option1_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600"
-                                      )}>
+                                      <div className={cn("text-lg font-black", option1_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600")}>
                                         {fmtKpi(option1_kpi_optimistic)}
                                       </div>
                                     </div>
                                     
-                                    <div className={cn("p-2 rounded border", 
-                                      option1_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300"
-                                    )}>
+                                    <div className={cn("p-2 rounded border", option1_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")}>
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] font-bold text-gray-600">😰 Pessimiste</span>
                                         {option1_meetsTarget_pessimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-red-600 text-xs">✗</span>}
                                       </div>
-                                      <div className={cn("text-lg font-black", 
-                                        option1_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600"
-                                      )}>
+                                      <div className={cn("text-lg font-black", option1_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600")}>
                                         {fmtKpi(option1_kpi_pessimistic)}
                                       </div>
                                     </div>
@@ -1362,25 +1349,20 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 </div>
                               </div>
 
-                              {/* OPTION 2 - BID AJUSTÉ POUR CAP */}
                               <div className="bg-white border-2 border-pink-200 rounded-xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
                                   <div>
                                     <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
-                                    <p className="text-xs text-pink-600">{option2_respectsCap ? "Respecte le Cap" : "Plus stable"}</p>
+                                    <p className="text-xs text-pink-600">{option2_respectsCap ? "Respecte Cap" : "Optimal"}</p>
                                   </div>
                                 </div>
                                 
                                 <div className="space-y-3">
                                   <div className="bg-pink-50 rounded-lg p-3">
-                                    <div className="text-xs text-pink-600 mb-1 flex items-center gap-1">
-                                      CPM Cost (Bid) 🎯
-                                    </div>
+                                    <div className="text-xs text-pink-600 mb-1 flex items-center gap-1">CPM Cost (Bid) 🎯</div>
                                     <div className="text-lg font-black text-pink-900">{option2_cpmCost.toFixed(2)} {currSym}</div>
-                                    <div className={cn("text-xs font-bold mt-1 flex items-center gap-1", 
-                                      option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-amber-600"
-                                    )}>
+                                    <div className={cn("text-xs font-bold mt-1 flex items-center gap-1", option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-amber-600")}>
                                       {option2_cpmCost < cpmCostActuelCalc ? "↓" : "↑"} {Math.abs(option2_bidAdjustmentPct).toFixed(1)}%
                                       <span className="text-[9px] bg-pink-100 px-1.5 py-0.5 rounded text-pink-700">
                                         {option2_respectsCap ? "CAP OK" : "OPTIMAL"}
@@ -1388,9 +1370,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     </div>
                                   </div>
                                   
-                                  <div className={cn("rounded-lg p-3",
-                                    option2_respectsCap ? "bg-emerald-50 border-2 border-emerald-300" : "bg-gray-50"
-                                  )}>
+                                  <div className={cn("rounded-lg p-3", option2_respectsCap ? "bg-emerald-50 border-2 border-emerald-300" : "bg-gray-50")}>
                                     <div className="flex items-center justify-between mb-1">
                                       <div className="text-xs text-gray-500">CPM Revenu</div>
                                       {option2_respectsCap && (
@@ -1400,12 +1380,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         </div>
                                       )}
                                     </div>
-                                    <div className="text-sm font-bold text-gray-900">
-                                      {option2_cpmRevenue.toFixed(2)} {currSym}
-                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">{option2_cpmRevenue.toFixed(2)} {currSym}</div>
                                     {option2_respectsCap && (
                                       <div className="text-[10px] text-emerald-600 font-bold mt-1">
-                                        = CPM Vendu Cap ({project.cpmSoldCap.toFixed(2)} {currSym})
+                                        = Cap ({project.cpmSoldCap.toFixed(2)} {currSym})
                                       </div>
                                     )}
                                   </div>
@@ -1416,30 +1394,22 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full">FOURCHETTE</span>
                                     </div>
                                     
-                                    <div className={cn("mb-2 p-2 rounded border", 
-                                      option2_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300"
-                                    )}>
+                                    <div className={cn("mb-2 p-2 rounded border", option2_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300")}>
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] font-bold text-gray-600">😊 Optimiste</span>
                                         {option2_meetsTarget_optimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-orange-600 text-xs">⚠</span>}
                                       </div>
-                                      <div className={cn("text-lg font-black", 
-                                        option2_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600"
-                                      )}>
+                                      <div className={cn("text-lg font-black", option2_meetsTarget_optimistic ? "text-emerald-600" : "text-orange-600")}>
                                         {fmtKpi(option2_kpi_optimistic)}
                                       </div>
                                     </div>
                                     
-                                    <div className={cn("p-2 rounded border", 
-                                      option2_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300"
-                                    )}>
+                                    <div className={cn("p-2 rounded border", option2_meetsTarget_pessimistic ? "bg-emerald-50 border-emerald-300" : "bg-red-50 border-red-300")}>
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] font-bold text-gray-600">😰 Pessimiste</span>
                                         {option2_meetsTarget_pessimistic ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-red-600 text-xs">✗</span>}
                                       </div>
-                                      <div className={cn("text-lg font-black", 
-                                        option2_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600"
-                                      )}>
+                                      <div className={cn("text-lg font-black", option2_meetsTarget_pessimistic ? "text-emerald-600" : "text-red-600")}>
                                         {fmtKpi(option2_kpi_pessimistic)}
                                       </div>
                                     </div>
@@ -1452,39 +1422,31 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                             </div>
                             
-                            {/* EXPLICATIONS ULTRA-EXPERTES */}
                             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5">
                               <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0">
-                                  💡
-                                </div>
+                                <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0">💡</div>
                                 <div className="flex-1">
-                                  <h5 className="font-black text-indigo-900 mb-3 text-sm">Analyse {project.kpiType} - 20 Ans d'Expertise Programmatique</h5>
+                                  <h5 className="font-black text-indigo-900 mb-3 text-sm">
+                                    Analyse {project.kpiType} - 20 Ans Expertise
+                                    {isAttributionKPI && <span className="text-xs ml-2 bg-orange-500 text-white px-2 py-0.5 rounded-full">J+{attrClick} / J+{attrView}</span>}
+                                  </h5>
                                   
                                   <div className="space-y-3 text-sm text-indigo-800">
                                     <div className="bg-white/60 rounded-lg p-3 border border-indigo-100">
                                       <p className="font-bold mb-1.5 text-indigo-900">
-                                        {isIncreasingMargin ? "🔺 Impact Montée de Marge" : "🔻 Impact Baisse de Marge"}
+                                        {isIncreasingMargin ? "🔺 Impact Hausse" : "🔻 Impact Baisse"}
                                       </p>
-                                      <p className="text-xs leading-relaxed">
-                                        {kpiExplanations.impact}
-                                      </p>
+                                      <p className="text-xs leading-relaxed">{kpiExplanations.impact}</p>
                                     </div>
                                     
                                     <div className="bg-pink-50/60 rounded-lg p-3 border border-pink-200">
-                                      <p className="font-bold mb-1.5 text-pink-900">
-                                        🎯 {option2_respectsCap ? "Option 2 respecte le CPM Vendu Cap" : "Pourquoi l'Option 2 est optimale"}
-                                      </p>
-                                      <p className="text-xs leading-relaxed">
-                                        {option2_explanation}. {kpiExplanations.option2}
-                                      </p>
+                                      <p className="font-bold mb-1.5 text-pink-900">🎯 Option 2</p>
+                                      <p className="text-xs leading-relaxed">{option2_explanation}. {kpiExplanations.option2}</p>
                                     </div>
                                     
                                     <div className="bg-yellow-50/60 rounded-lg p-3 border border-yellow-200">
-                                      <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette Optimiste vs Pessimiste</p>
-                                      <p className="text-xs leading-relaxed">
-                                        {kpiExplanations.range}
-                                      </p>
+                                      <p className="font-bold mb-1.5 text-yellow-900">📊 Fourchette</p>
+                                      <p className="text-xs leading-relaxed">{kpiExplanations.range}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -1495,7 +1457,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       })()}
                     </div>
                          
-                    {/* Bouton Appliquer */}
                     <div className="flex justify-end mt-6">
                       <button 
                         onClick={applyMarginChange}
@@ -1509,31 +1470,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               : "bg-amber-600 text-white hover:bg-amber-700"
                         )}
                       >
-                        {uplift > 0 ? (
-                          <>
-                            <TrendingUp className="w-4 h-4" />
-                            📈 Appliquer Hausse
-                          </>
-                        ) : uplift < 0 ? (
-                          <>
-                            <TrendingDown className="w-4 h-4" />
-                            📉 Appliquer Baisse
-                          </>
-                        ) : (
-                          <>
-                            <Minus className="w-4 h-4" />
-                            Aucun changement
-                          </>
-                        )}
+                        {uplift > 0 ? (<><TrendingUp className="w-4 h-4" />📈 Appliquer Hausse</>) : uplift < 0 ? (<><TrendingDown className="w-4 h-4" />📉 Appliquer Baisse</>) : (<><Minus className="w-4 h-4" />Aucun changement</>)}
                       </button>
                     </div>
 
-                    {/* Chart */}
                     <div className="mt-8 pt-8 border-t border-gray-100">
                       <div className="flex items-center justify-between mb-6">
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">Projection des Gains</h3>
-                          <p className="text-sm text-gray-500">Évolution de la marge cumulée sur la durée de la campagne</p>
+                          <p className="text-sm text-gray-500">Évolution de la marge cumulée</p>
                         </div>
                         <div className={cn("border rounded-xl px-6 py-3 text-right", uplift >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100")}>
                           <div className={cn("font-bold text-xs uppercase tracking-wider mb-1", uplift >= 0 ? "text-emerald-800" : "text-red-800")}>
@@ -1825,153 +1770,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </div>
                       </div>
 
-                      <div className="mt-8 bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-2xl p-6 shadow-lg">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-indigo-200">
-                          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                            <Activity className="w-6 h-6 text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-black text-indigo-900">🎯 Plan d'Action DSP</h3>
-                            <p className="text-sm text-indigo-600 font-medium">Actions concrètes à effectuer dans votre DSP pour chaque ligne</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          {proposedOptimizations.map((opt) => {
-                            const original = project.lineItems.find(o => o.id === opt.id);
-                            if (!original) return null;
-                            
-                            const budgetChange = opt.spend - original.spend;
-                            const budgetChangePct = original.spend > 0 ? (budgetChange / original.spend) * 100 : 0;
-                            const cpmChange = opt.cpmRevenue - original.cpmRevenue;
-                            const cpmChangePct = original.cpmRevenue > 0 ? (cpmChange / original.cpmRevenue) * 100 : 0;
-                            const marginChange = opt.marginPct - original.marginPct;
-                            
-                            const categoryColor = 
-                              opt.perfCategory === "star" ? "border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50" :
-                              opt.perfCategory === "good" ? "border-emerald-400 bg-gradient-to-r from-emerald-50 to-green-50" :
-                              opt.perfCategory === "ok" ? "border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50" :
-                              opt.perfCategory === "underperforming" ? "border-orange-400 bg-gradient-to-r from-orange-50 to-amber-50" :
-                              "border-red-400 bg-gradient-to-r from-red-50 to-rose-50";
-                            
-                            const categoryIcon = 
-                              opt.perfCategory === "star" ? "⭐" :
-                              opt.perfCategory === "good" ? "✅" :
-                              opt.perfCategory === "ok" ? "✓" :
-                              opt.perfCategory === "underperforming" ? "⚠️" :
-                              "💀";
-                            
-                            return (
-                              <div key={opt.id} className={`border-2 rounded-xl p-5 ${categoryColor} shadow-sm`}>
-                                <div className="flex items-start justify-between mb-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="text-3xl">{categoryIcon}</div>
-                                    <div>
-                                      <h4 className="font-black text-gray-900 text-lg">{opt.name}</h4>
-                                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">{opt.action || "Aucune action"}</p>
-                                    </div>
-                                  </div>
-                                  {lockedLines.has(opt.id) && (
-                                    <div className="bg-amber-100 border border-amber-300 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                                      <Lock className="w-3 h-3" /> Verrouillée
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-4 mb-4">
-                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
-                                    <div className="text-xs font-bold text-gray-500 mb-1">💰 Budget Quotidien</div>
-                                    <div className="flex items-baseline gap-2">
-                                      <span className="text-sm text-gray-600">{original.spend.toFixed(2)} {currSym}</span>
-                                      <span className="text-lg font-black text-gray-900">→</span>
-                                      <span className="text-lg font-black text-blue-600">{opt.spend.toFixed(2)} {currSym}</span>
-                                    </div>
-                                    <div className={`text-xs font-bold mt-1 ${budgetChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                      {budgetChange >= 0 ? '+' : ''}{budgetChange.toFixed(2)} {currSym} ({budgetChangePct >= 0 ? '+' : ''}{budgetChangePct.toFixed(1)}%)
-                                    </div>
-                                  </div>
-
-                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
-                                    <div className="text-xs font-bold text-gray-500 mb-1">🎯 CPM Revenue Target</div>
-                                    <div className="flex items-baseline gap-2">
-                                      <span className="text-sm text-gray-600">{original.cpmRevenue.toFixed(2)} {currSym}</span>
-                                      <span className="text-lg font-black text-gray-900">→</span>
-                                      <span className="text-lg font-black text-indigo-600">{opt.cpmRevenue.toFixed(2)} {currSym}</span>
-                                    </div>
-                                    <div className={`text-xs font-bold mt-1 ${cpmChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                      {cpmChange >= 0 ? '+' : ''}{cpmChange.toFixed(2)} {currSym} ({cpmChangePct >= 0 ? '+' : ''}{cpmChangePct.toFixed(1)}%)
-                                    </div>
-                                  </div>
-
-                                  <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
-                                    <div className="text-xs font-bold text-gray-500 mb-1">📊 Marge Cible</div>
-                                    <div className="flex items-baseline gap-2">
-                                      <span className="text-sm text-gray-600">{original.marginPct.toFixed(1)}%</span>
-                                      <span className="text-lg font-black text-gray-900">→</span>
-                                      <span className="text-lg font-black text-emerald-600">{opt.marginPct.toFixed(1)}%</span>
-                                    </div>
-                                    <div className={`text-xs font-bold mt-1 ${marginChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                      {marginChange >= 0 ? '+' : ''}{marginChange.toFixed(1)} points
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="bg-white/80 rounded-lg p-4 border-2 border-dashed border-gray-300">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                                      <span className="text-white text-xs font-black">i</span>
-                                    </div>
-                                    <h5 className="font-black text-gray-900 text-sm">Actions à faire dans le DSP :</h5>
-                                  </div>
-                                  <div className="space-y-2 text-sm">
-                                    {Math.abs(budgetChangePct) > 5 && (
-                                      <div className="flex items-start gap-2">
-                                        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-blue-600 font-black text-xs">1</span>
-                                        </div>
-                                        <p className="text-gray-700">
-                                          <strong>Budget :</strong> {budgetChange > 0 ? 'Augmenter' : 'Réduire'} le budget quotidien à <strong className="text-blue-600">{opt.spend.toFixed(2)} {currSym}</strong>
-                                          {budgetChange > 0 
-                                            ? " pour profiter de la bonne performance"
-                                            : " pour limiter les pertes ou redistribuer vers d'autres lignes"}
-                                        </p>
-                                      </div>
-                                    )}
-
-                                    {Math.abs(cpmChangePct) > 2 && (
-                                      <div className="flex items-start gap-2">
-                                        <div className="w-5 h-5 bg-indigo-100 rounded flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-indigo-600 font-black text-xs">2</span>
-                                        </div>
-                                        <p className="text-gray-700">
-                                          <strong>CPM/Bid :</strong> Ajuster le CPM target ou le bid à <strong className="text-indigo-600">{opt.cpmRevenue.toFixed(2)} {currSym}</strong>
-                                          {cpmChange > 0 
-                                            ? " pour capturer plus de volume avec une marge supérieure"
-                                            : " pour améliorer la compétitivité et le KPI"}
-                                        </p>
-                                      </div>
-                                    )}
-
-                                    {Math.abs(marginChange) > 2 && (
-                                      <div className="flex items-start gap-2">
-                                        <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-emerald-600 font-black text-xs">3</span>
-                                        </div>
-                                        <p className="text-gray-700">
-                                          <strong>Marge :</strong> Viser une marge de <strong className="text-emerald-600">{opt.marginPct.toFixed(1)}%</strong>
-                                          {" ("}soit un CPM Cost de <strong>{(opt.cpmRevenue * (1 - opt.marginPct / 100)).toFixed(2)} {currSym}</strong>{")"}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end gap-3">
+                      <div className="flex justify-end gap-3 mt-6">
                         <button 
                           onClick={() => setProposedOptimizations(null)}
                           className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
@@ -2188,36 +1987,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       </div>
                                     </div>
                                     
-                                    {/* 🎯 BUDGET INTELLIGENT SELON TYPE D'ACTION */}
                                     <div className="bg-gray-50 p-3 rounded-lg">
                                       <div className="text-xs text-gray-500 mb-1">
                                         {snap.action === "DAILY_UPDATE" ? "Budget de l'entrée" : "Budget Cumulé"}
                                       </div>
                                       <div className="text-lg font-black text-gray-900">
-                                        {(() => {
-                                          if (snap.action === "DAILY_UPDATE" && snap.note) {
-                                            const dateMatch = snap.note.match(/(\d{2}\/\d{2}\/\d{4})/);
-                                            if (dateMatch && project.dailyEntries) {
-                                              const [day, month, year] = dateMatch[1].split('/');
-                                              const dateToFind = `${year}-${month}-${day}`;
-                                              const entry = project.dailyEntries.find(e => e.date === dateToFind);
-                                              if (entry) {
-                                                return `${entry.budgetSpent.toLocaleString()} ${currSym}`;
-                                              }
-                                            }
-                                          }
-                                          
-                                          if (snap.action === "MARGIN_UP" || snap.action === "MARGIN_DOWN") {
-                                            const currentIndex = project.history!.length - 1 - idx;
-                                            if (currentIndex > 0) {
-                                              const previousSnap = project.history![currentIndex - 1];
-                                              const budgetDiff = snap.budgetSpent - previousSnap.budgetSpent;
-                                              return `${budgetDiff.toLocaleString()} ${currSym}`;
-                                            }
-                                          }
-                                          
-                                          return `${snap.budgetSpent.toLocaleString()} ${currSym}`;
-                                        })()}
+                                        {snap.budgetSpent.toLocaleString()} {currSym}
                                       </div>
                                     </div>
                                     
@@ -2339,7 +2114,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         </h4>
                         <textarea
                           id="note-input"
-                          placeholder="Écrivez votre note ici... (ex: Optimisation manuelle effectuée sur la ligne 'Display Mobile')"
+                          placeholder="Écrivez votre note ici..."
                           className="w-full h-32 text-sm border-gray-200 bg-gray-50 rounded-lg p-3 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
                         />
                         <div className="flex justify-end mt-3">
