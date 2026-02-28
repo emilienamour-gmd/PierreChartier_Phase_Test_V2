@@ -190,18 +190,17 @@ export function Sidebar({
                             </div>
                             <div className="flex items-center gap-1">
                               <TrendingUp className="w-3 h-3" />
-                              <span>{kpis.avgCpmRevenue.toFixed(2)}</span>
+                              <span>{kpis.avgCpmRevenue.toFixed(2)} CPM</span>
                             </div>
-                            {/* Colonne vide pour aligner le KPI objectif sous le CPM */}
-                            <div></div>
-                            {/* 🎯 KPI Objectif moyen - aligné sous le CPM */}
+                            {/* Budget dépensé - colonne gauche */}
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" />
+                              <span>{kpis.totalBudgetSpent.toFixed(0)} {kpis.currSym}</span>
+                            </div>
+                            {/* 🎯 KPI Objectif moyen - colonne droite */}
                             <div className="flex items-center gap-1">
                               <Target className="w-3 h-3" />
                               <span>{kpis.targetKpi.toFixed(2)} {kpis.kpiType}</span>
-                            </div>
-                            <div className="flex items-center gap-1 col-span-2">
-                              <DollarSign className="w-3 h-3" />
-                              <span>{kpis.totalBudgetSpent.toFixed(0)} {kpis.currSym}</span>
                             </div>
                           </div>
                         )}
