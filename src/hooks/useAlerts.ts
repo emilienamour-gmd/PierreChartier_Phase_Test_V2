@@ -243,7 +243,7 @@ export function useAlerts(projects: ProjectData[]): Alert[] {
             message: `Excellente performance : marge ${currentMargin.toFixed(1)}% + objectif KPI atteint`,
             projectId: project.id,
             projectName: project.name,
-            recommendation: "Considérez scaler le budget ou dupliquer la stratégie"
+            recommendation: "Considérez augmenter le budget ou dupliquer la stratégie"
           });
         }
       }
