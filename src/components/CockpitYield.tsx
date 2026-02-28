@@ -260,7 +260,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       const margin = entry.marginPct || 0;
       const revenue = entry.cpmRevenue || 0;
       const cost = revenue * (1 - margin / 100);
-      const kpi = entry.kpi || 0;
+      const kpi = entry.kpiActual || 0;
 
       totalSpent += spent;
       totalCost += (cost * spent) / (revenue || 1); // pondéré par spend
