@@ -195,10 +195,10 @@ export function PortfolioOverview({ projects, onSelectProject }: PortfolioOvervi
               </div>
             </div>
             <div className="text-3xl font-black mb-1">
-              {totalGain.toLocaleString()} {currSym}
+              {Math.round(totalGain).toLocaleString()} {currSym}
             </div>
             <div className="text-sm opacity-90">
-              Projection : {projectedGain.toLocaleString()} {currSym}
+              Projection : {Math.round(projectedGain).toLocaleString()} {currSym}
             </div>
           </div>
         </div>
@@ -328,7 +328,7 @@ export function PortfolioOverview({ projects, onSelectProject }: PortfolioOvervi
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-lg font-black text-emerald-600">
-                          {gain.toLocaleString()} {currSym}
+                          {Math.round(gain).toLocaleString()} {currSym}
                         </div>
                       </td>
                       <td className="px-6 py-4">
