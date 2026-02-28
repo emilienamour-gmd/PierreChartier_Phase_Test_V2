@@ -10,7 +10,9 @@ import {
   FolderOpen,
   Settings as SettingsIcon,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  BarChart3
 } from "lucide-react";
 import { cn } from "../utils/cn";
 import { ProjectData } from "../types";
@@ -30,6 +32,8 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { id: "cockpit", label: "Cockpit Yield", icon: LayoutDashboard },
+  { id: "tracking", label: "Suivi Campagne", icon: Calendar },
+  { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "cycle", label: "Cycle des Optimisations", icon: RefreshCw },
   { id: "portfolio", label: "Portfolio & Performance", icon: Briefcase },
   { id: "market", label: "Market Watch", icon: LineChart },
@@ -79,7 +83,7 @@ export function Sidebar({
           </nav>
         </div>
 
-        {activeTab === "cockpit" && (
+        {(activeTab === "cockpit" || activeTab === "tracking" || activeTab === "insights") && (
           <div className="mb-8">
             {/* Header Campagnes avec bouton déroulant */}
             <button
