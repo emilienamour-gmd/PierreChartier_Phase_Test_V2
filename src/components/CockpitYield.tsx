@@ -245,6 +245,8 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
  const handleOptimize = () => {
   if (!marginGoal) {
     alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
