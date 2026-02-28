@@ -1474,27 +1474,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         </p>
                                       </div>
                                     )}
-
-                                    {/* Recommandation spéciale selon catégorie */}
-                                    {opt.perfCategory === "dead" && (
-                                      <div className="flex items-start gap-2 bg-red-50 -mx-2 -mb-2 p-3 rounded-b-lg border-t border-red-200 mt-3">
-                                        <div className="text-red-500 shrink-0">💀</div>
-                                        <p className="text-red-700 font-medium text-xs">
-                                          <strong>Attention :</strong> Ligne très sous-performante (KPI = 0 ou < 70% objectif). 
-                                          Envisager de <strong>mettre en pause</strong> si pas d'amélioration rapide.
-                                        </p>
-                                      </div>
-                                    )}
-
-                                    {opt.perfCategory === "star" && (
-                                      <div className="flex items-start gap-2 bg-yellow-50 -mx-2 -mb-2 p-3 rounded-b-lg border-t border-yellow-200 mt-3">
-                                        <div className="text-yellow-500 shrink-0">⭐</div>
-                                        <p className="text-yellow-800 font-medium text-xs">
-                                          <strong>Opportunité :</strong> Ligne star (> 150% objectif) ! 
-                                          Considérer de <strong>dupliquer cette stratégie</strong> sur d'autres campagnes ou inventaires similaires.
-                                        </p>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               </div>
