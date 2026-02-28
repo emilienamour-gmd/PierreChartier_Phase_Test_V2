@@ -624,8 +624,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     </label>
     <input 
       type="number" 
+      step="0.01"
       className="w-full text-sm border-gray-200 bg-gray-50 rounded-lg p-2.5 border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-      value={project.budgetSpent}
+      value={project.budgetSpent.toFixed(2)}
       onChange={(e) => updateField("budgetSpent", Number(e.target.value))}
     />
   </div>
@@ -1623,10 +1624,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 tick={{ fontSize: 12, fill: '#64748b' }} 
                                 axisLine={false} 
                                 tickLine={false}
-                                tickFormatter={(val) => `${val.toFixed(0)}${currSym}`}
+                                tickFormatter={(val) => `${val.toFixed(2)}${currSym}`}
                               />
                               <Tooltip 
                                 contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                formatter={(value: number, name: string) => {
+                                  if (name === `Gain (${currSym})`) {
+                                    return [`${value.toFixed(2)} ${currSym}`, name];
+                                  }
+                                  return [`${value.toFixed(2)}%`, name];
+                                }}
                               />
                               <Legend />
                               <Line 
