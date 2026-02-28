@@ -98,6 +98,61 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     };
   };
 
+  // 🗑️ FONCTION : SUPPRIMER UNE ENTRÉE HISTORIQUE
+  const handleDeleteHistoryEntry = (index: number) => {
+    if (!confirm("⚠️ Supprimer cette entrée de l'historique ? Cette action est irréversible.")) {
+      return;
+    }
+
+    const entryToDelete = project.history?.[index];
+    if (!entryToDelete) return;
+
+    // Copie de l'historique sans l'entrée supprimée
+    const newHistory = [...(project.history || [])];
+    newHistory.splice(index, 1);
+
+    let updatedProject = { ...project, history: newHistory };
+
+    // Si c'est un DAILY_UPDATE, supprimer aussi de dailyEntries
+    if (entryToDelete.action === "DAILY_UPDATE" && entryToDelete.note) {
+      const dateMatch = entryToDelete.note.match(/(\d{2}\/\d{2}\/\d{4})/);
+      if (dateMatch) {
+        const [day, month, year] = dateMatch[1].split('/');
+        const dateToDelete = `${year}-${month}-${day}`;
+        
+        const newDailyEntries = (project.dailyEntries || []).filter(
+          entry => entry.date !== dateToDelete
+        );
+        
+        updatedProject.dailyEntries = newDailyEntries;
+        
+        // Recalculer le budget dépensé
+        const newBudgetSpent = newDailyEntries.reduce((sum, e) => sum + e.budgetSpent, 0);
+        updatedProject.budgetSpent = newBudgetSpent;
+      }
+    }
+
+    // Si c'est une MARGIN_UP ou MARGIN_DOWN, supprimer de marginPeriods
+    if (entryToDelete.action === "MARGIN_UP" || entryToDelete.action === "MARGIN_DOWN") {
+      const newMarginPeriods = (project.marginPeriods || []).filter(
+        period => Math.abs(new Date(period.startDate).getTime() - new Date(entryToDelete.timestamp).getTime()) > 5000
+      );
+      
+      updatedProject.marginPeriods = newMarginPeriods;
+      
+      // Restaurer la marge précédente si possible
+      if (newMarginPeriods.length > 0) {
+        const lastPeriod = newMarginPeriods[newMarginPeriods.length - 1];
+        updatedProject.margeInput = lastPeriod.marginPct;
+      }
+    }
+
+    updatedProject.updatedAt = new Date().toISOString();
+    onChange(updatedProject);
+    
+    alert("✅ Entrée supprimée avec succès !");
+  };
+
   const applyMarginChange = () => {
     if (uplift === 0) {
       alert("Aucun changement de marge à appliquer.");
@@ -1671,14 +1726,24 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         </span>
                                       )}
                                     </div>
-                                    <div className="text-xs text-gray-500 font-medium">
-                                      {date.toLocaleDateString('fr-FR', { 
-                                        day: '2-digit', 
-                                        month: 'short', 
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-xs text-gray-500 font-medium">
+                                        {date.toLocaleDateString('fr-FR', { 
+                                          day: '2-digit', 
+                                          month: 'short', 
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </div>
+                                      {/* 🗑️ BOUTON SUPPRIMER */}
+                                      <button
+                                        onClick={() => handleDeleteHistoryEntry(project.history!.length - 1 - idx)}
+                                        className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                                        title="Supprimer cette entrée"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
                                     </div>
                                   </div>
                                   
