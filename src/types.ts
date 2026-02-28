@@ -1,6 +1,3 @@
-// Fichier : src/types.ts
-// REMPLACE COMPLÈTEMENT TON FICHIER ACTUEL
-
 export interface LineItem {
   id: string;
   name: string;
@@ -18,7 +15,7 @@ export interface ProjectSnapshot {
   cpmRevenueActual: number;
   actualKpi: number;
   gainRealized: number;
-  action: "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION" | "SNAPSHOT";
+  action: "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION" | "SNAPSHOT" | "DAILY_UPDATE";
   note?: string;
 }
 
@@ -32,6 +29,17 @@ export interface ProjectNote {
   id: string;
   timestamp: string;
   content: string;
+}
+
+export interface DailyEntry {
+  id: string;
+  date: string;
+  budgetSpentYesterday: number;
+  cpmRevenueYesterday: number;
+  marginPctYesterday: number;
+  kpiYesterday: number;
+  budgetSpentCumulative: number;
+  appliedAt: string;
 }
 
 export interface ProjectData {
@@ -53,6 +61,7 @@ export interface ProjectData {
   history?: ProjectSnapshot[];
   marginPeriods?: MarginPeriod[];
   notes?: ProjectNote[];
+  dailyEntries?: DailyEntry[];
   uplift?: number;
   updatedAt?: string;
 }
@@ -77,6 +86,7 @@ export const DEFAULT_PROJECT: ProjectData = {
   history: [],              // ← VIDE
   marginPeriods: [],        // ← VIDE
   notes: [],                // ← VIDE
+  dailyEntries: [],         // ← VIDE
   uplift: 3.0,
   updatedAt: new Date().toISOString()
 };
