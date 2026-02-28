@@ -237,6 +237,53 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
   const displayMargin = calculateWeightedMargin();
 
+  // 🔥 NOUVELLE FONCTION : Calcul des MOYENNES depuis dailyEntries
+  const calculateDailyAverages = () => {
+    if (!project.dailyEntries || project.dailyEntries.length === 0) {
+      // Si pas d'entrées quotidiennes, retourner les valeurs actuelles
+      return {
+        avgCpmCost: cpmCostActuelCalc,
+        avgCpmRevenue: project.cpmRevenueActual,
+        avgMargin: currentMarginPctCalc,
+        avgKpi: project.actualKpi
+      };
+    }
+
+    let totalSpent = 0;
+    let totalCost = 0;
+    let totalRevenue = 0;
+    let totalGain = 0;
+    let totalKpiWeighted = 0;
+
+    project.dailyEntries.forEach(entry => {
+      const spent = entry.budgetSpent || 0;
+      const margin = entry.marginPct || 0;
+      const revenue = entry.cpmRevenue || 0;
+      const cost = revenue * (1 - margin / 100);
+      const kpi = entry.kpi || 0;
+
+      totalSpent += spent;
+      totalCost += (cost * spent) / (revenue || 1); // pondéré par spend
+      totalRevenue += (revenue * spent) / (revenue || 1); // pondéré
+      totalGain += spent * (margin / 100);
+      totalKpiWeighted += spent * kpi;
+    });
+
+    const avgCpmCost = totalSpent > 0 ? totalCost / project.dailyEntries.length : cpmCostActuelCalc;
+    const avgCpmRevenue = totalSpent > 0 ? totalRevenue / project.dailyEntries.length : project.cpmRevenueActual;
+    const avgMargin = totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
+    const avgKpi = totalSpent > 0 ? totalKpiWeighted / totalSpent : project.actualKpi;
+
+    return {
+      avgCpmCost,
+      avgCpmRevenue,
+      avgMargin,
+      avgKpi
+    };
+  };
+
+  const dailyAverages = calculateDailyAverages();
+
   const totalSpendTable = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
   let wMargin = currentMarginPctCalc;
   let wCpmRev = project.cpmRevenueActual;
@@ -254,10 +301,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
     wKpi = project.lineItems.reduce((acc, li) => acc + ((li.spend || 0) * li.kpiActual), 0) / totalSpendTable;
   }
 
-  const dispCpmCost = dashSource === "table" ? wCpmCost : cpmCostActuelCalc;
-  const dispCpmRev = dashSource === "table" ? wCpmRev : project.cpmRevenueActual;
-  const dispMargin = dashSource === "table" ? wMargin : currentMarginPctCalc;
-  const dispKpi = dashSource === "table" ? wKpi : project.actualKpi;
+  // 🔥 UTILISER LES MOYENNES QUOTIDIENNES pour l'affichage
+  const dispCpmCost = dailyAverages.avgCpmCost;
+  const dispCpmRev = dailyAverages.avgCpmRevenue;
+  const dispMargin = dailyAverages.avgMargin;
+  const dispKpi = dailyAverages.avgKpi;
 
   const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
   const margeEuroDisp = dispCpmRev - dispCpmCost;
@@ -850,26 +898,26 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
           {/* Metrics Row */}
           <div className="grid grid-cols-4 gap-6">
             <MetricCard 
-              title="CPM Cost (Net)" 
+              title="CPM Cost Moyen (Net)" 
               value={`${dispCpmCost.toFixed(2)} ${currSym}`} 
               icon={DollarSign}
               accent="indigo"
             />
             <MetricCard 
-              title="CPM Revenu Actuel" 
+              title="CPM Revenu Moyen" 
               value={`${dispCpmRev.toFixed(2)} ${currSym}`} 
               icon={TrendingUp}
               accent="indigo"
             />
             <MetricCard 
-              title="Marge Actuelle" 
-              value={`${displayMargin.toFixed(2)} %`}
+              title="Marge Moyenne" 
+              value={`${dispMargin.toFixed(2)} %`}
               subValue={`${margeEuroDisp.toFixed(2)} ${currSym}`}
               icon={Percent}
               accent="emerald"
             />
             <MetricCard 
-              title={`KPI ${project.kpiType}`} 
+              title={`KPI ${project.kpiType} Moyen`} 
               value={isFin ? `${fmtKpi(dispKpi)} ${currSym}` : `${(dispKpi * (project.kpiType === "CTR" ? 1 : 100)).toFixed(2)} ${project.kpiType === "CTR" ? "%" : ""}`} 
               subValue={
                 isFin 
