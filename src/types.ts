@@ -1,3 +1,6 @@
+// Fichier : src/types.ts
+// REMPLACE COMPLÈTEMENT TON FICHIER ACTUEL
+
 export interface LineItem {
   id: string;
   name: string;
@@ -32,13 +35,13 @@ export interface ProjectNote {
 }
 
 export interface DailyEntry {
-  id: string;
+  id?: string;
   date: string;
-  budgetSpent: number;    
-  cpmRevenue: number;     
-  marginPct: number;      
-  kpiActual: number;     
-  appliedAt: string;
+  budgetSpent: number;
+  cpmRevenue: number;
+  marginPct: number;
+  kpiActual: number;
+  appliedAt?: string;
 }
 
 export interface ProjectData {
@@ -63,6 +66,8 @@ export interface ProjectData {
   dailyEntries?: DailyEntry[];
   uplift?: number;
   updatedAt?: string;
+  createdAt?: string;
+  lastModified?: number;
 }
 
 // ✅ DEFAULT_PROJECT : TOUS LES CHAMPS À ZÉRO
@@ -87,5 +92,7 @@ export const DEFAULT_PROJECT: ProjectData = {
   notes: [],                // ← VIDE
   dailyEntries: [],         // ← VIDE
   uplift: 3.0,
-  updatedAt: new Date().toISOString()
+  updatedAt: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  lastModified: Date.now()
 };
