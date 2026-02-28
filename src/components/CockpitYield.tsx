@@ -1013,7 +1013,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
 
-                    {/* 🎯 ALGORITHME ULTRA-EXPERT AVEC ATTRIBUTION DYNAMIQUE */}
+                    {/* 🎯 ALGORITHME ULTRA-EXPERT AVEC VOLATILITÉ BID TOUS KPIs */}
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
                       <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                         <Target className="w-5 h-5" />
@@ -1029,15 +1029,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                         const isIncreasingMargin = uplift > 0;
                         
-                        // 🔥 FACTEUR ATTRIBUTION DYNAMIQUE (CPA/CPV)
+                        // 🔥 FACTEUR ATTRIBUTION (CPA/CPV)
                         const isAttributionKPI = project.kpiType === "CPA" || project.kpiType === "CPV";
                         const attributionFactor = isAttributionKPI 
-                          ? (attrClick + attrView * 0.3) / 8  // Normalisé sur J+7 clic + J+1 view
+                          ? (attrClick + attrView * 0.3) / 8
                           : 1.0;
                         
                         const isLongAttribution = attrClick > 14;
                         
-                        // 🎯 COEFFICIENTS BASE PAR KPI
+                        // 🎯 COEFFICIENTS BASE
                         const getKPICoefficients = (kpiType: string) => {
                           const coeffs = {
                             CPCV: { 
@@ -1094,7 +1094,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         
                         const baseCoeffs = getKPICoefficients(project.kpiType);
                         
-                        // 🔥 APPLIQUER FACTEUR ATTRIBUTION
+                        // 🔥 APPLIQUER FACTEUR ATTRIBUTION (CPA/CPV)
                         const kpiCoeffs = isAttributionKPI ? {
                           ...baseCoeffs,
                           marginUp_base: baseCoeffs.marginUp_base * attributionFactor,
@@ -1142,17 +1142,62 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             : `Pour maximiser le volume, montez votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (+${option2_bidAdjustmentPct.toFixed(1)}%)`;
                         }
                         
-                        // 🔥 VOLATILITÉ OPTION 2 SELON SEUIL BID
-                        const bidChangeRatio = Math.abs((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc);
+                        // 🔥 NOUVEAU : VOLATILITÉ BID POUR TOUS LES KPIs
+                        const avgMarketCpm = 3.0;
                         
-                        let volatilityMultiplier = 1.0;
-                        if (bidChangeRatio > 0.50) {
-                          volatilityMultiplier = 2.0;
-                        } else if (bidChangeRatio > 0.30) {
-                          volatilityMultiplier = 1.5;
-                        } else if (bidChangeRatio > 0.20) {
-                          volatilityMultiplier = 1.25;
+                        // Option 1 : Bid stable (montée marge)
+                        const option1_bidRatio = option1_cpmCost / avgMarketCpm;
+                        let option1_bidVolatility = 1.0;
+                        
+                        if (isIncreasingMargin) {
+                          if (option1_bidRatio < 0.3) {
+                            option1_bidVolatility = 2.5;
+                          } else if (option1_bidRatio < 0.5) {
+                            option1_bidVolatility = 2.0;
+                          } else if (option1_bidRatio < 0.7) {
+                            option1_bidVolatility = 1.5;
+                          } else if (option1_bidRatio < 1.0) {
+                            option1_bidVolatility = 1.2;
+                          }
                         }
+                        
+                        // Option 2 : Bid ajusté
+                        const option2_bidRatio = option2_cpmCost / avgMarketCpm;
+                        let option2_bidVolatility = 1.0;
+                        
+                        if (option2_bidRatio < 0.3) {
+                          option2_bidVolatility = 2.5;
+                        } else if (option2_bidRatio < 0.5) {
+                          option2_bidVolatility = 2.0;
+                        } else if (option2_bidRatio < 0.7) {
+                          option2_bidVolatility = 1.5;
+                        } else if (option2_bidRatio < 1.0) {
+                          option2_bidVolatility = 1.2;
+                        }
+                        
+                        // Intensité selon KPI
+                        const getVolatilityIntensity = (kpiType: string) => {
+                          const intensities: any = {
+                            CPA: 1.0,
+                            CPV: 1.0,
+                            CPCV: 0.8,
+                            CPC: 0.8,
+                            CPM: 0.6,
+                            VTR: 0.5,
+                            CTR: 0.5,
+                            Viewability: 0.3
+                          };
+                          return intensities[kpiType] || 0.7;
+                        };
+                        
+                        const volatilityIntensity = getVolatilityIntensity(project.kpiType);
+                        
+                        const option1_finalVolatility = 1 + (option1_bidVolatility - 1) * volatilityIntensity;
+                        const option2_finalVolatility = 1 + (option2_bidVolatility - 1) * volatilityIntensity;
+                        
+                        // Détecter bid très bas
+                        const isLowBid_option1 = option1_bidRatio < 0.5;
+                        const isLowBid_option2 = option2_bidRatio < 0.5;
                         
                         // CALCUL KPIs
                         let option1_kpi_optimistic, option1_kpi_pessimistic;
@@ -1175,12 +1220,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             const baseImpact2 = 1 - (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_volatility * 0.6);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_competition * 0.8);
-                            
-                            // 🔥 APPLIQUER VOLATILITÉ SUR OPTION 2
-                            const baseRange = option2_kpi_pessimistic - option2_kpi_optimistic;
-                            const center = (option2_kpi_pessimistic + option2_kpi_optimistic) / 2;
-                            option2_kpi_optimistic = center - (baseRange / 2) * volatilityMultiplier;
-                            option2_kpi_pessimistic = center + (baseRange / 2) * volatilityMultiplier;
                           }
                         } else {
                           if (isIncreasingMargin) {
@@ -1199,14 +1238,19 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             const baseImpact2 = 1 + (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_volatility * 0.6);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_competition * 0.8);
-                            
-                            // 🔥 APPLIQUER VOLATILITÉ SUR OPTION 2
-                            const baseRange = option2_kpi_pessimistic - option2_kpi_optimistic;
-                            const center = (option2_kpi_pessimistic + option2_kpi_optimistic) / 2;
-                            option2_kpi_optimistic = center - (baseRange / 2) * volatilityMultiplier;
-                            option2_kpi_pessimistic = center + (baseRange / 2) * volatilityMultiplier;
                           }
                         }
+                        
+                        // 🔥 APPLIQUER VOLATILITÉ BID
+                        const opt1_center = (option1_kpi_optimistic + option1_kpi_pessimistic) / 2;
+                        const opt1_baseRange = option1_kpi_pessimistic - option1_kpi_optimistic;
+                        option1_kpi_optimistic = opt1_center - (opt1_baseRange / 2) * option1_finalVolatility;
+                        option1_kpi_pessimistic = opt1_center + (opt1_baseRange / 2) * option1_finalVolatility;
+                        
+                        const opt2_center = (option2_kpi_optimistic + option2_kpi_pessimistic) / 2;
+                        const opt2_baseRange = option2_kpi_pessimistic - option2_kpi_optimistic;
+                        option2_kpi_optimistic = opt2_center - (opt2_baseRange / 2) * option2_finalVolatility;
+                        option2_kpi_pessimistic = opt2_center + (opt2_baseRange / 2) * option2_finalVolatility;
                         
                         const targetKpi = project.targetKpi;
                         const option1_meetsTarget_optimistic = isFin ? option1_kpi_optimistic <= targetKpi : option1_kpi_optimistic >= targetKpi;
@@ -1231,6 +1275,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             CPV: {
                               up: { impact: isLongAttribution ? `🔥 EXTRÊME (J+${attrClick}) : SHIFT MASSIF LOW-INTENT → bot/fraud dominant → CPV grimpe !` : `🔥 QUALITÉ : Moins placements contextuels → LOW-INTENT → qualité effondre.`, option2: `Ajuster = mid-tier QUALIFIÉ. Qualité > Quantité. 100 qualifiées > 500 poubelle.`, range: "Optimiste = landing convertit. Pessimiste = LOW-INTENT, bounce 90%, fraud." },
                               down: { impact: isLongAttribution ? `🚀 MAXIMAL (J+${attrClick}) : Premium intent-based → ULTRA-QUALIFIÉ massif → CPV baisse + qualité EXPLOSE !` : `🚀 QUALITÉ : Meilleur contextuel → ULTRA-QUALIFIÉ → CPV baisse.`, option2: "Baisse + boost = volume QUALIFIÉ max. Immédiat.", range: "Optimiste = ULTRA-QUALIFIÉ, +50% conversion. Pessimiste = volume, qualité moyenne." }
+                            },
+                            CPM: {
+                              up: { impact: "CPM dépend du bid. Baisser bid = accès inventaire résiduel → CPM peut monter (paradoxe des restes).", option2: "Ajuster permet de rester sur inventaire standard.", range: "Optimiste = inventaire moyen stable. Pessimiste = inventaire trash." },
+                              down: { impact: "Monter bid = inventaire premium → CPM baisse car meilleur taux de remplissage.", option2: "Hausser = premium, fill rate élevé.", range: "Optimiste = premium. Pessimiste = compétition." }
                             },
                             CTR: {
                               up: { impact: "Dépend créative. Moins bid = moins visible → baisse légère.", option2: "Éviter invisible.", range: "Optimiste = forte. Pessimiste = médiocre." },
@@ -1264,14 +1312,15 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                             )}
                             
-                            {volatilityMultiplier > 1.0 && !isIncreasingMargin && (
-                              <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4">
-                                <div className="flex items-center gap-2 text-amber-900 mb-2">
+                            {(isLowBid_option1 || isLowBid_option2) && (
+                              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+                                <div className="flex items-center gap-2 text-red-900 mb-2">
                                   <AlertTriangle className="w-5 h-5" />
-                                  <span className="font-black">BID BOOST ÉLEVÉ ({Math.abs(bidChangeRatio * 100).toFixed(0)}%)</span>
+                                  <span className="font-black">BID TRÈS BAS DÉTECTÉ</span>
                                 </div>
-                                <p className="text-sm text-amber-700">
-                                  Fourchette Option 2 ÉLARGIE (×{volatilityMultiplier.toFixed(1)}). Résultats volatils → Surveiller !
+                                <p className="text-sm text-red-700">
+                                  {isLowBid_option1 && isLowBid_option2 ? "Les deux options" : isLowBid_option1 ? "Option 1" : "Option 2"} {isLowBid_option1 && isLowBid_option2 ? "ont un" : "a un"} bid très bas (&lt;50% marché) → Inventaire résiduel → Fourchette TRÈS VOLATILE. 
+                                  Facteur volatilité {project.kpiType}: ×{volatilityIntensity.toFixed(1)}
                                 </p>
                               </div>
                             )}
@@ -1290,7 +1339,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   <div className="bg-purple-50 rounded-lg p-3">
                                     <div className="text-xs text-purple-600 mb-1">CPM Cost (Bid)</div>
                                     <div className="text-lg font-black text-purple-900">{option1_cpmCost.toFixed(2)} {currSym}</div>
-                                    <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      → Inchangé 
+                                      {isLowBid_option1 && <span className="ml-1 text-red-600 font-bold">(BAS {(option1_bidRatio * 100).toFixed(0)}% marché)</span>}
+                                    </div>
                                   </div>
                                   
                                   <div className={cn("rounded-lg p-3", option1_exceedsCap ? "bg-red-50 border-2 border-red-300" : "bg-gray-50")}>
@@ -1342,6 +1394,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       </div>
                                     </div>
                                     
+                                    {option1_finalVolatility > 1.1 && (
+                                      <div className="mt-2 pt-2 border-t border-blue-200">
+                                        <div className="text-[10px] text-blue-700 font-bold">
+                                          ⚠️ Volatilité ×{option1_finalVolatility.toFixed(2)} (bid bas)
+                                        </div>
+                                      </div>
+                                    )}
+                                    
                                     <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200">
                                       Objectif : <strong>{fmtKpi(targetKpi)}</strong>
                                     </div>
@@ -1367,6 +1427,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       <span className="text-[9px] bg-pink-100 px-1.5 py-0.5 rounded text-pink-700">
                                         {option2_respectsCap ? "CAP OK" : "OPTIMAL"}
                                       </span>
+                                      {isLowBid_option2 && <span className="text-[9px] text-red-600 font-black">(BAS {(option2_bidRatio * 100).toFixed(0)}%)</span>}
                                     </div>
                                   </div>
                                   
@@ -1413,6 +1474,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                         {fmtKpi(option2_kpi_pessimistic)}
                                       </div>
                                     </div>
+                                    
+                                    {option2_finalVolatility > 1.1 && (
+                                      <div className="mt-2 pt-2 border-t border-emerald-200">
+                                        <div className="text-[10px] text-emerald-700 font-bold">
+                                          ⚠️ Volatilité ×{option2_finalVolatility.toFixed(2)} (bid bas)
+                                        </div>
+                                      </div>
+                                    )}
                                     
                                     <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200">
                                       Objectif : <strong>{fmtKpi(targetKpi)}</strong>
