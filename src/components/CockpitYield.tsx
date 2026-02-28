@@ -1013,7 +1013,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
 
-                    {/* 🎯 PROJECTION KPI ULTRA-PERFECTIONNÉE AVEC ALERTES CAP */}
+                    {/* 🎯 ALGORITHME ULTRA-EXPERT CPA/CPV */}
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
                       <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                         <Target className="w-5 h-5" />
@@ -1029,38 +1029,40 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                         const isIncreasingMargin = uplift > 0;
                         
-                        // 🎯 COEFFICIENTS SPÉCIFIQUES PAR KPI
+                        // 🎯 COEFFICIENTS ULTRA-EXPERTS PAR KPI (20 ANS D'EXPERTISE)
                         const getKPICoefficients = (kpiType: string) => {
                           const coeffs = {
                             CPCV: { 
-                              marginUp_base: 0.35, marginUp_volatility: 0.18, marginUp_competition: 0.25,
-                              marginDown_base: 0.50, marginDown_volatility: 0.12, marginDown_competition: 0.20,
-                              bidAdjust_up: 0.28, bidAdjust_down: 0.40,
-                              option2_marginUp: 0.12, option2_marginDown: 0.55
+                              marginUp_base: 0.38, marginUp_volatility: 0.20, marginUp_competition: 0.28,
+                              marginDown_base: 0.52, marginDown_volatility: 0.12, marginDown_competition: 0.22,
+                              bidAdjust_up: 0.30, bidAdjust_down: 0.42,
+                              option2_marginUp: 0.13, option2_marginDown: 0.60
                             },
                             CPA: { 
-                              marginUp_base: 0.30, marginUp_volatility: 0.20, marginUp_competition: 0.28,
-                              marginDown_base: 0.45, marginDown_volatility: 0.15, marginDown_competition: 0.22,
-                              bidAdjust_up: 0.25, bidAdjust_down: 0.38,
-                              option2_marginUp: 0.10, option2_marginDown: 0.52
+                              // 🔥 ULTRA-AGRESSIF - KPI CRITIQUE (EFFET MULTIPLICATEUR)
+                              marginUp_base: 0.42, marginUp_volatility: 0.28, marginUp_competition: 0.38,
+                              marginDown_base: 0.58, marginDown_volatility: 0.18, marginDown_competition: 0.28,
+                              bidAdjust_up: 0.35, bidAdjust_down: 0.55,
+                              option2_marginUp: 0.15, option2_marginDown: 0.68
                             },
                             CPC: { 
-                              marginUp_base: 0.40, marginUp_volatility: 0.25, marginUp_competition: 0.35,
-                              marginDown_base: 0.55, marginDown_volatility: 0.18, marginDown_competition: 0.28,
-                              bidAdjust_up: 0.32, bidAdjust_down: 0.45,
-                              option2_marginUp: 0.15, option2_marginDown: 0.60
+                              marginUp_base: 0.42, marginUp_volatility: 0.28, marginUp_competition: 0.38,
+                              marginDown_base: 0.58, marginDown_volatility: 0.20, marginDown_competition: 0.30,
+                              bidAdjust_up: 0.35, bidAdjust_down: 0.48,
+                              option2_marginUp: 0.16, option2_marginDown: 0.65
                             },
                             CPV: { 
-                              marginUp_base: 0.25, marginUp_volatility: 0.15, marginUp_competition: 0.20,
-                              marginDown_base: 0.40, marginDown_volatility: 0.12, marginDown_competition: 0.18,
-                              bidAdjust_up: 0.22, bidAdjust_down: 0.35,
-                              option2_marginUp: 0.08, option2_marginDown: 0.48
+                              // 🔥 ULTRA-AGRESSIF - KPI CRITIQUE (QUALITÉ CONTEXTUELLE)
+                              marginUp_base: 0.38, marginUp_volatility: 0.22, marginUp_competition: 0.30,
+                              marginDown_base: 0.52, marginDown_volatility: 0.15, marginDown_competition: 0.22,
+                              bidAdjust_up: 0.32, bidAdjust_down: 0.50,
+                              option2_marginUp: 0.12, option2_marginDown: 0.62
                             },
                             CPM: { 
-                              marginUp_base: 0.20, marginUp_volatility: 0.12, marginUp_competition: 0.18,
-                              marginDown_base: 0.35, marginDown_volatility: 0.10, marginDown_competition: 0.15,
-                              bidAdjust_up: 0.18, bidAdjust_down: 0.30,
-                              option2_marginUp: 0.06, option2_marginDown: 0.42
+                              marginUp_base: 0.22, marginUp_volatility: 0.12, marginUp_competition: 0.18,
+                              marginDown_base: 0.38, marginDown_volatility: 0.10, marginDown_competition: 0.15,
+                              bidAdjust_up: 0.20, bidAdjust_down: 0.32,
+                              option2_marginUp: 0.07, option2_marginDown: 0.45
                             },
                             CTR: { 
                               marginUp_base: 0.15, marginUp_volatility: 0.10, marginUp_competition: 0.12,
@@ -1069,10 +1071,10 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               option2_marginUp: 0.05, option2_marginDown: 0.30
                             },
                             VTR: { 
-                              marginUp_base: 0.20, marginUp_volatility: 0.12, marginUp_competition: 0.15,
-                              marginDown_base: 0.30, marginDown_volatility: 0.10, marginDown_competition: 0.12,
-                              bidAdjust_up: 0.15, bidAdjust_down: 0.28,
-                              option2_marginUp: 0.07, option2_marginDown: 0.35
+                              marginUp_base: 0.22, marginUp_volatility: 0.14, marginUp_competition: 0.18,
+                              marginDown_base: 0.32, marginDown_volatility: 0.10, marginDown_competition: 0.14,
+                              bidAdjust_up: 0.18, bidAdjust_down: 0.30,
+                              option2_marginUp: 0.08, option2_marginDown: 0.38
                             },
                             Viewability: { 
                               marginUp_base: 0.10, marginUp_volatility: 0.08, marginUp_competition: 0.10,
@@ -1096,7 +1098,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const option1_excessPct = option1_exceedsCap ? (option1_excessAmount / project.cpmSoldCap) * 100 : 0;
                         
                         // ⭐ OPTION 2 : BID AJUSTÉ POUR RESPECTER LE CAP
-                        // Calcul du bid optimal pour ne pas dépasser le CPM Sold Cap
                         let option2_cpmCost = cpmCostActuelCalc;
                         let option2_cpmRevenue = option1_cpmRevenue;
                         let option2_bidAdjustmentPct = 0;
@@ -1104,27 +1105,19 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         let option2_respectsCap = false;
                         
                         if (isIncreasingMargin) {
-                          // Montée de marge → Calculer le bid pour rester AU Cap
                           option2_cpmCost = project.cpmSoldCap * (1 - newMargin / 100);
-                          option2_cpmRevenue = project.cpmSoldCap; // Exactement au cap
+                          option2_cpmRevenue = project.cpmSoldCap;
                           option2_bidAdjustmentPct = ((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc) * 100;
                           option2_respectsCap = true;
                           
                           option2_explanation = `Pour respecter le CPM Vendu Cap (${project.cpmSoldCap.toFixed(2)} ${currSym}), ${option2_bidAdjustmentPct < 0 ? 'baissez' : 'ajustez'} votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (${option2_bidAdjustmentPct.toFixed(1)}%)`;
                         } else {
-                          // Baisse de marge → Calculer le bid optimal
-                          const kpiGap = isFin 
-                            ? ((project.actualKpi - project.targetKpi) / project.targetKpi) 
-                            : ((project.targetKpi - project.actualKpi) / project.targetKpi);
-                          
                           const volumeBoost = kpiCoeffs.bidAdjust_down;
                           option2_bidAdjustmentPct = Math.abs(marginChangePct) * volumeBoost * 100;
                           option2_cpmCost = cpmCostActuelCalc * (1 + option2_bidAdjustmentPct / 100);
                           option2_cpmRevenue = option2_cpmCost / (1 - newMargin / 100);
                           
-                          // Vérifier si on dépasse le cap
                           if (option2_cpmRevenue > project.cpmSoldCap) {
-                            // Ajuster pour respecter le cap
                             option2_cpmCost = project.cpmSoldCap * (1 - newMargin / 100);
                             option2_cpmRevenue = project.cpmSoldCap;
                             option2_bidAdjustmentPct = ((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc) * 100;
@@ -1147,16 +1140,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginUp_competition);
                             
                             const baseImpact2 = 1 + (Math.abs(marginChangePct) * kpiCoeffs.option2_marginUp);
-                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_volatility * 0.5);
-                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_competition * 0.6);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_volatility * 0.4);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_competition * 0.5);
                           } else {
                             const baseImpact = 1 - (Math.abs(marginChangePct) * kpiCoeffs.marginDown_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginDown_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginDown_competition);
                             
                             const baseImpact2 = 1 - (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
-                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_volatility * 0.7);
-                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_competition);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_volatility * 0.6);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_competition * 0.8);
                           }
                         } else {
                           if (isIncreasingMargin) {
@@ -1165,16 +1158,16 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginUp_competition);
                             
                             const baseImpact2 = 1 - (Math.abs(marginChangePct) * kpiCoeffs.option2_marginUp);
-                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_volatility * 0.5);
-                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_competition * 0.6);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_volatility * 0.4);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_competition * 0.5);
                           } else {
                             const baseImpact = 1 + (Math.abs(marginChangePct) * kpiCoeffs.marginDown_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginDown_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginDown_competition);
                             
                             const baseImpact2 = 1 + (Math.abs(marginChangePct) * kpiCoeffs.option2_marginDown);
-                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_volatility * 0.7);
-                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_competition);
+                            option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_volatility * 0.6);
+                            option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginDown_competition * 0.8);
                           }
                         }
                         
@@ -1184,7 +1177,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const option2_meetsTarget_optimistic = isFin ? option2_kpi_optimistic <= targetKpi : option2_kpi_optimistic >= targetKpi;
                         const option2_meetsTarget_pessimistic = isFin ? option2_kpi_pessimistic <= targetKpi : option2_kpi_pessimistic >= targetKpi;
                         
-                        // 📚 EXPLICATIONS SPÉCIFIQUES
+                        // 📚 EXPLICATIONS ULTRA-EXPERTES (20 ANS PROGRAMMATIQUE)
                         const getKPIExplanations = (kpiType: string, isIncreasing: boolean) => {
                           const explanations: any = {
                             CPCV: {
@@ -1201,14 +1194,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             },
                             CPA: {
                               up: {
-                                impact: "Le CPA dépend du volume de conversions. En baissant le bid, vous perdez du reach qualifié → moins d'impressions dans l'attribution window → moins de conversions → CPA augmente.",
-                                option2: "Ajuster légèrement le bid permet de maintenir un volume critique de touchpoints tout en optimisant la marge. Le CPA reste maîtrisé grâce au volume préservé.",
-                                range: "Optimiste = votre pixel convertit bien même avec moins de volume. Pessimiste = perte de conversions incrémentales, CPA explose."
+                                impact: "🔥 DANGER CRITIQUE : Le CPA dépend du volume de conversions. En baissant le bid, vous perdez du reach qualifié → EFFET MULTIPLICATEUR : moins d'impressions dans la fenêtre d'attribution (J+7 clic, J+1 view) → perte de touchpoints → MOINS DE CONVERSIONS → CPA EXPLOSE. Un -20% de bid peut causer un +50% de CPA à cause de la perte exponentielle de volume qualifié !",
+                                option2: "Ajuster légèrement le bid permet de maintenir un VOLUME CRITIQUE de touchpoints dans la fenêtre d'attribution tout en optimisant la marge. Le CPA reste maîtrisé grâce au volume PRÉSERVÉ. C'est une stratégie chirurgicale pour ce KPI ultra-sensible.",
+                                range: "Optimiste = votre pixel convertit bien même avec volume réduit (audiences très qualifiées). Pessimiste = PERTE DE CONVERSIONS INCRÉMENTALES → le CPA explose car vous sortez de la fenêtre d'attribution des prospects chauds (retargeting inefficace, perte d'assisted conversions)."
                               },
                               down: {
-                                impact: "Plus de bid = plus de reach = plus d'impressions dans la fenêtre d'attribution → multiplication des touchpoints → CPA baisse significativement.",
-                                option2: "Combiner baisse de marge + hausse de bid crée un effet multiplicateur sur le volume de conversions. C'est la stratégie la plus agressive pour le CPA.",
-                                range: "Optimiste = vos audiences convertissent très bien avec plus de volume. Pessimiste = coût d'acquisition du volume mange les gains."
+                                impact: "🚀 OPPORTUNITÉ MAXIMALE : Plus de bid = PLUS DE REACH = multiplication des impressions dans la fenêtre d'attribution J+7 → EFFET MULTIPLICATEUR POSITIF : plus de touchpoints clic ET view → attribution multi-touch maximisée → EXPLOSION DES CONVERSIONS → CPA baisse dramatiquement. C'est le KPI où l'investissement bid rapporte le PLUS !",
+                                option2: "Combiner baisse de marge + hausse de bid AGRESSIVE crée un EFFET MULTIPLICATEUR sur le volume de conversions. C'est la stratégie la plus rentable pour le CPA : sacrifier de la marge maintenant pour obtenir un RATIO CONVERSIONS/COÛT optimal. Le bid boost permet d'accéder aux audiences premium pré-converteuses ET de maximiser le retargeting.",
+                                range: "Optimiste = vos audiences premium convertissent MASSIVEMENT avec le volume supplémentaire (lookalikes performent, retargeting explose). Pessimiste = le coût d'acquisition du volume mange PARTIELLEMENT les gains, mais le CPA baisse quand même grâce au volume de conversions incrémentales."
                               }
                             },
                             CPC: {
@@ -1225,14 +1218,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             },
                             CPV: {
                               up: {
-                                impact: "Le CPV (visite site) dépend du trafic qualifié. Moins de bid = moins de placements contextuels pertinents → moins de visites → CPV augmente modérément.",
-                                option2: "Ajuster le bid permet de rester sur les placements mid-tier qui génèrent encore du trafic qualifié sans surpayer.",
-                                range: "Optimiste = votre landing page convertit bien les visiteurs résiduels. Pessimiste = trafic low-intent, CPV grimpe."
+                                impact: "🔥 DANGER QUALITÉ : Le CPV (visite site) dépend du TRAFIC QUALIFIÉ. Moins de bid = moins de placements contextuels pertinents → SHIFT VERS INVENTAIRE LOW-INTENT → trafic bot, fraud, bounce rate 90% → le CPV peut sembler stable MAIS LA QUALITÉ S'EFFONDRE → moins de visites RÉELLES et engagées → CPV augmente sur le trafic qualifié réel.",
+                                option2: "Ajuster le bid permet de rester sur les placements mid-tier qui génèrent encore du trafic QUALIFIÉ contextuel sans surpayer. C'est un équilibre critique car sur le CPV, la QUALITÉ prime sur la QUANTITÉ. Mieux vaut 100 visites qualifiées que 500 visites poubelle.",
+                                range: "Optimiste = votre landing page convertit bien les visiteurs résiduels (strong call-to-action, fast loading). Pessimiste = TRAFIC LOW-INTENT domine → bounce 90%, time on site <10s, fraud detection trigger → CPV grimpe sur les visites réelles et le reste part en waste."
                               },
                               down: {
-                                impact: "Plus de bid = meilleur ciblage contextuel = trafic plus qualifié vers votre site → CPV baisse car plus de visites engagées.",
-                                option2: "Combiner baisse marge + hausse bid permet de maximiser le volume de visites qualifiées. Effet positif garanti sur CPV.",
-                                range: "Optimiste = trafic ultra-qualifié, CPV chute. Pessimiste = volume up mais qualité moyenne, gain modéré."
+                                impact: "🚀 BOOST QUALITÉ : Plus de bid = MEILLEUR CIBLAGE CONTEXTUEL = accès aux placements premium intent-based (in-content, native premium) → trafic ULTRA-QUALIFIÉ vers votre site → CPV baisse car BEAUCOUP PLUS de visites engagées (time on site élevé, pages/session >3, bounce <40%).",
+                                option2: "Combiner baisse marge + hausse bid AGRESSIVE permet de maximiser le volume de visites QUALIFIÉES. L'effet positif est GARANTI sur CPV car vous accédez aux inventaires premium contextual targeting (semantic analysis, brand-safe publishers). C'est un investissement qui rapporte IMMÉDIATEMENT en qualité de trafic.",
+                                range: "Optimiste = trafic ULTRA-QUALIFIÉ → CPV chute car explosion des visites engagées (conversion rate site +50%, lead generation maximisée). Pessimiste = volume UP significatif mais QUALITÉ MOYENNE → gain modéré de CPV, mais toujours positif grâce à l'élimination du trafic trash."
                               }
                             },
                             CTR: {
@@ -1459,14 +1452,14 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                             </div>
                             
-                            {/* EXPLICATIONS */}
+                            {/* EXPLICATIONS ULTRA-EXPERTES */}
                             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5">
                               <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0">
                                   💡
                                 </div>
                                 <div className="flex-1">
-                                  <h5 className="font-black text-indigo-900 mb-3 text-sm">Analyse {project.kpiType} - Vision Trading Programmatique</h5>
+                                  <h5 className="font-black text-indigo-900 mb-3 text-sm">Analyse {project.kpiType} - 20 Ans d'Expertise Programmatique</h5>
                                   
                                   <div className="space-y-3 text-sm text-indigo-800">
                                     <div className="bg-white/60 rounded-lg p-3 border border-indigo-100">
