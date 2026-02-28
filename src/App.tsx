@@ -63,7 +63,7 @@ export default function App() {
   const activeProject = currentProject || DEFAULT_PROJECT;
 
   const tabTitles: Record<string, string> = {
-    cockpit: "Dashboard",
+    cockpit: "Pierre Chartier Trading",
     tracking: "Suivi Campagne",
     insights: "Insights",
     cycle: "Cycle des Optimisations",
