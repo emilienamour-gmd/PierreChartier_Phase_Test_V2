@@ -1013,7 +1013,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                       );
                     })()}
 
-                    {/* 🎯 PROJECTION KPI ADAPTÉE À CHAQUE TYPE DE KPI */}
+                    {/* 🎯 PROJECTION KPI ULTRA-PERFECTIONNÉE AVEC ALERTES CAP */}
                     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
                       <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                         <Target className="w-5 h-5" />
@@ -1029,10 +1029,9 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
                         const isIncreasingMargin = uplift > 0;
                         
-                        // 🎯 COEFFICIENTS SPÉCIFIQUES PAR KPI (expertise trading programmatique)
+                        // 🎯 COEFFICIENTS SPÉCIFIQUES PAR KPI
                         const getKPICoefficients = (kpiType: string) => {
                           const coeffs = {
-                            // KPIs financiers - Impact montée de marge (bid baisse)
                             CPCV: { 
                               marginUp_base: 0.35, marginUp_volatility: 0.18, marginUp_competition: 0.25,
                               marginDown_base: 0.50, marginDown_volatility: 0.12, marginDown_competition: 0.20,
@@ -1063,7 +1062,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               bidAdjust_up: 0.18, bidAdjust_down: 0.30,
                               option2_marginUp: 0.06, option2_marginDown: 0.42
                             },
-                            // KPIs qualité - Impact inversé
                             CTR: { 
                               marginUp_base: 0.15, marginUp_volatility: 0.10, marginUp_competition: 0.12,
                               marginDown_base: 0.25, marginDown_volatility: 0.08, marginDown_competition: 0.10,
@@ -1083,49 +1081,67 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               option2_marginUp: 0.03, option2_marginDown: 0.22
                             }
                           };
-                          
                           return coeffs[kpiType as keyof typeof coeffs] || coeffs.CPA;
                         };
                         
                         const kpiCoeffs = getKPICoefficients(project.kpiType);
                         
-                        // OPTION 1 : BID STABLE
+                        // ⭐ OPTION 1 : BID STABLE
                         const option1_cpmCost = cpmCostActuelCalc;
                         const option1_cpmRevenue = option1_cpmCost / (1 - newMargin / 100);
                         
-                        // OPTION 2 : BID AJUSTÉ avec calcul intelligent
+                        // 🚨 ALERTE CAP pour Option 1
+                        const option1_exceedsCap = option1_cpmRevenue > project.cpmSoldCap;
+                        const option1_excessAmount = option1_exceedsCap ? option1_cpmRevenue - project.cpmSoldCap : 0;
+                        const option1_excessPct = option1_exceedsCap ? (option1_excessAmount / project.cpmSoldCap) * 100 : 0;
+                        
+                        // ⭐ OPTION 2 : BID AJUSTÉ POUR RESPECTER LE CAP
+                        // Calcul du bid optimal pour ne pas dépasser le CPM Sold Cap
                         let option2_cpmCost = cpmCostActuelCalc;
+                        let option2_cpmRevenue = option1_cpmRevenue;
                         let option2_bidAdjustmentPct = 0;
                         let option2_explanation = "";
+                        let option2_respectsCap = false;
                         
                         if (isIncreasingMargin) {
+                          // Montée de marge → Calculer le bid pour rester AU Cap
+                          option2_cpmCost = project.cpmSoldCap * (1 - newMargin / 100);
+                          option2_cpmRevenue = project.cpmSoldCap; // Exactement au cap
+                          option2_bidAdjustmentPct = ((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc) * 100;
+                          option2_respectsCap = true;
+                          
+                          option2_explanation = `Pour respecter le CPM Vendu Cap (${project.cpmSoldCap.toFixed(2)} ${currSym}), ${option2_bidAdjustmentPct < 0 ? 'baissez' : 'ajustez'} votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (${option2_bidAdjustmentPct.toFixed(1)}%)`;
+                        } else {
+                          // Baisse de marge → Calculer le bid optimal
                           const kpiGap = isFin 
                             ? ((project.actualKpi - project.targetKpi) / project.targetKpi) 
                             : ((project.targetKpi - project.actualKpi) / project.targetKpi);
                           
-                          const aggressiveness = kpiGap > 0 ? kpiCoeffs.bidAdjust_up : kpiCoeffs.bidAdjust_up * 0.6;
-                          option2_bidAdjustmentPct = Math.abs(marginChangePct) * aggressiveness * 100;
-                          option2_cpmCost = cpmCostActuelCalc * (1 - option2_bidAdjustmentPct / 100);
-                          
-                          option2_explanation = `Pour maintenir la compétitivité malgré la hausse de marge, baissez votre bid de ${option2_bidAdjustmentPct.toFixed(1)}% (soit ${option2_cpmCost.toFixed(2)} ${currSym})`;
-                        } else {
                           const volumeBoost = kpiCoeffs.bidAdjust_down;
                           option2_bidAdjustmentPct = Math.abs(marginChangePct) * volumeBoost * 100;
                           option2_cpmCost = cpmCostActuelCalc * (1 + option2_bidAdjustmentPct / 100);
+                          option2_cpmRevenue = option2_cpmCost / (1 - newMargin / 100);
                           
-                          option2_explanation = `Pour maximiser le volume et améliorer le KPI, augmentez votre bid de ${option2_bidAdjustmentPct.toFixed(1)}% (soit ${option2_cpmCost.toFixed(2)} ${currSym})`;
+                          // Vérifier si on dépasse le cap
+                          if (option2_cpmRevenue > project.cpmSoldCap) {
+                            // Ajuster pour respecter le cap
+                            option2_cpmCost = project.cpmSoldCap * (1 - newMargin / 100);
+                            option2_cpmRevenue = project.cpmSoldCap;
+                            option2_bidAdjustmentPct = ((option2_cpmCost - cpmCostActuelCalc) / cpmCostActuelCalc) * 100;
+                            option2_respectsCap = true;
+                          }
+                          
+                          option2_explanation = option2_respectsCap
+                            ? `Bid optimal pour le Cap : ${option2_cpmCost.toFixed(2)} ${currSym} (${option2_bidAdjustmentPct > 0 ? '+' : ''}${option2_bidAdjustmentPct.toFixed(1)}%)`
+                            : `Pour maximiser le volume, montez votre bid à ${option2_cpmCost.toFixed(2)} ${currSym} (+${option2_bidAdjustmentPct.toFixed(1)}%)`;
                         }
                         
-                        const option2_cpmRevenue = option2_cpmCost / (1 - newMargin / 100);
-                        
-                        // CALCUL DES KPIs PROJETÉS avec coefficients spécifiques
+                        // CALCUL DES KPIs PROJETÉS
                         let option1_kpi_optimistic, option1_kpi_pessimistic;
                         let option2_kpi_optimistic, option2_kpi_pessimistic;
                         
                         if (isFin) {
-                          // KPIs financiers
                           if (isIncreasingMargin) {
-                            // Montée marge = KPI augmente (se dégrade)
                             const baseImpact = 1 + (Math.abs(marginChangePct) * kpiCoeffs.marginUp_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginUp_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginUp_competition);
@@ -1134,7 +1150,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_volatility * 0.5);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_competition * 0.6);
                           } else {
-                            // Baisse marge = KPI baisse (s'améliore)
                             const baseImpact = 1 - (Math.abs(marginChangePct) * kpiCoeffs.marginDown_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginDown_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginDown_competition);
@@ -1144,9 +1159,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginDown_competition);
                           }
                         } else {
-                          // KPIs qualité
                           if (isIncreasingMargin) {
-                            // Montée marge = KPI baisse
                             const baseImpact = 1 - (Math.abs(marginChangePct) * kpiCoeffs.marginUp_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginUp_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginUp_competition);
@@ -1155,7 +1168,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                             option2_kpi_optimistic = project.actualKpi * (baseImpact2 + kpiCoeffs.marginUp_volatility * 0.5);
                             option2_kpi_pessimistic = project.actualKpi * (baseImpact2 - kpiCoeffs.marginUp_competition * 0.6);
                           } else {
-                            // Baisse marge = KPI augmente
                             const baseImpact = 1 + (Math.abs(marginChangePct) * kpiCoeffs.marginDown_base);
                             option1_kpi_optimistic = project.actualKpi * (baseImpact - kpiCoeffs.marginDown_volatility);
                             option1_kpi_pessimistic = project.actualKpi * (baseImpact + kpiCoeffs.marginDown_competition);
@@ -1167,13 +1179,12 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         }
                         
                         const targetKpi = project.targetKpi;
-                        
                         const option1_meetsTarget_optimistic = isFin ? option1_kpi_optimistic <= targetKpi : option1_kpi_optimistic >= targetKpi;
                         const option1_meetsTarget_pessimistic = isFin ? option1_kpi_pessimistic <= targetKpi : option1_kpi_pessimistic >= targetKpi;
                         const option2_meetsTarget_optimistic = isFin ? option2_kpi_optimistic <= targetKpi : option2_kpi_optimistic >= targetKpi;
                         const option2_meetsTarget_pessimistic = isFin ? option2_kpi_pessimistic <= targetKpi : option2_kpi_pessimistic >= targetKpi;
                         
-                        // 📚 EXPLICATIONS SPÉCIFIQUES PAR KPI
+                        // 📚 EXPLICATIONS SPÉCIFIQUES
                         const getKPIExplanations = (kpiType: string, isIncreasing: boolean) => {
                           const explanations: any = {
                             CPCV: {
@@ -1195,7 +1206,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 range: "Optimiste = votre pixel convertit bien même avec moins de volume. Pessimiste = perte de conversions incrémentales, CPA explose."
                               },
                               down: {
-                                impact: "Plus de bid = plus de reach = plus d'impressions dans la fenêtre d'attribution (J+7 clic, J+1 view) → multiplication des touchpoints → CPA baisse significativement.",
+                                impact: "Plus de bid = plus de reach = plus d'impressions dans la fenêtre d'attribution → multiplication des touchpoints → CPA baisse significativement.",
                                 option2: "Combiner baisse de marge + hausse de bid crée un effet multiplicateur sur le volume de conversions. C'est la stratégie la plus agressive pour le CPA.",
                                 range: "Optimiste = vos audiences convertissent très bien avec plus de volume. Pessimiste = coût d'acquisition du volume mange les gains."
                               }
@@ -1207,7 +1218,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 range: "Optimiste = votre créative performe bien même sur inventaire moyen. Pessimiste = shift brutal vers inventaire clickbait, CPC double."
                               },
                               down: {
-                                impact: "Monter le bid sur CPC = accès aux emplacements above-the-fold, native premium → CTR augmente → CPC baisse mécaniquement (plus de clics pour le même coût).",
+                                impact: "Monter le bid sur CPC = accès aux emplacements above-the-fold, native premium → CTR augmente → CPC baisse mécaniquement.",
                                 option2: "Hausser agressivement le bid permet d'écraser la compétition et sécuriser l'inventaire premium high-CTR. Impact maximal sur CPC.",
                                 range: "Optimiste = domination de l'inventaire premium, CPC s'effondre. Pessimiste = guerre des prix, CPC baisse moins que prévu."
                               }
@@ -1261,7 +1272,6 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               }
                             }
                           };
-                          
                           const direction = isIncreasing ? 'up' : 'down';
                           return explanations[kpiType]?.[direction] || explanations.CPA[direction];
                         };
@@ -1271,7 +1281,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         return (
                           <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
-                              {/* OPTION 1 - BID STABLE */}
+                              {/* OPTION 1 - BID STABLE AVEC ALERTE CAP */}
                               <div className="bg-white border-2 border-purple-200 rounded-xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-black">1</div>
@@ -1288,12 +1298,36 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     <div className="text-xs text-gray-500 mt-1">→ Inchangé</div>
                                   </div>
                                   
-                                  <div className="bg-gray-50 rounded-lg p-3">
-                                    <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
-                                    <div className="text-sm font-bold text-gray-900">{option1_cpmRevenue.toFixed(2)} {currSym}</div>
+                                  {/* 🚨 CPM REVENU AVEC ALERTE CAP */}
+                                  <div className={cn("rounded-lg p-3", 
+                                    option1_exceedsCap ? "bg-red-50 border-2 border-red-300" : "bg-gray-50"
+                                  )}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="text-xs text-gray-500">CPM Revenu</div>
+                                      {option1_exceedsCap && (
+                                        <div className="flex items-center gap-1 text-red-600">
+                                          <AlertTriangle className="w-3 h-3" />
+                                          <span className="text-[9px] font-black">ALERTE CAP</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className={cn("text-sm font-bold", 
+                                      option1_exceedsCap ? "text-red-700" : "text-gray-900"
+                                    )}>
+                                      {option1_cpmRevenue.toFixed(2)} {currSym}
+                                    </div>
+                                    {option1_exceedsCap && (
+                                      <div className="mt-2 pt-2 border-t border-red-200">
+                                        <div className="text-[10px] text-red-600 font-bold">
+                                          Dépasse le Cap de {option1_excessAmount.toFixed(2)} {currSym} (+{option1_excessPct.toFixed(1)}%)
+                                        </div>
+                                        <div className="text-[9px] text-red-500 mt-1">
+                                          ⚠️ Risque de refacturation client !
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                   
-                                  {/* FOURCHETTE KPI */}
                                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
                                     <div className="text-xs font-bold text-blue-900 mb-3 flex items-center justify-between">
                                       <span>{project.kpiType} Projeté</span>
@@ -1335,13 +1369,13 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                 </div>
                               </div>
 
-                              {/* OPTION 2 - BID AJUSTÉ */}
+                              {/* OPTION 2 - BID AJUSTÉ POUR CAP */}
                               <div className="bg-white border-2 border-pink-200 rounded-xl p-5">
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className="w-10 h-10 bg-pink-100 text-pink-600 rounded-lg flex items-center justify-center font-black">2</div>
                                   <div>
                                     <h5 className="font-bold text-pink-900">Bid Ajusté</h5>
-                                    <p className="text-xs text-pink-600">Plus stable</p>
+                                    <p className="text-xs text-pink-600">{option2_respectsCap ? "Respecte le Cap" : "Plus stable"}</p>
                                   </div>
                                 </div>
                                 
@@ -1355,13 +1389,32 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       option2_cpmCost < cpmCostActuelCalc ? "text-emerald-600" : "text-amber-600"
                                     )}>
                                       {option2_cpmCost < cpmCostActuelCalc ? "↓" : "↑"} {Math.abs(option2_bidAdjustmentPct).toFixed(1)}%
-                                      <span className="text-[9px] bg-pink-100 px-1.5 py-0.5 rounded text-pink-700">OPTIMAL</span>
+                                      <span className="text-[9px] bg-pink-100 px-1.5 py-0.5 rounded text-pink-700">
+                                        {option2_respectsCap ? "CAP OK" : "OPTIMAL"}
+                                      </span>
                                     </div>
                                   </div>
                                   
-                                  <div className="bg-gray-50 rounded-lg p-3">
-                                    <div className="text-xs text-gray-500 mb-1">CPM Revenu</div>
-                                    <div className="text-sm font-bold text-gray-900">{option2_cpmRevenue.toFixed(2)} {currSym}</div>
+                                  <div className={cn("rounded-lg p-3",
+                                    option2_respectsCap ? "bg-emerald-50 border-2 border-emerald-300" : "bg-gray-50"
+                                  )}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="text-xs text-gray-500">CPM Revenu</div>
+                                      {option2_respectsCap && (
+                                        <div className="flex items-center gap-1 text-emerald-600">
+                                          <CheckCircle2 className="w-3 h-3" />
+                                          <span className="text-[9px] font-black">CAP OK</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">
+                                      {option2_cpmRevenue.toFixed(2)} {currSym}
+                                    </div>
+                                    {option2_respectsCap && (
+                                      <div className="text-[10px] text-emerald-600 font-bold mt-1">
+                                        = CPM Vendu Cap ({project.cpmSoldCap.toFixed(2)} {currSym})
+                                      </div>
+                                    )}
                                   </div>
                                   
                                   <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-lg p-4">
@@ -1406,7 +1459,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                               </div>
                             </div>
                             
-                            {/* 📚 EXPLICATIONS SPÉCIFIQUES AU KPI */}
+                            {/* EXPLICATIONS */}
                             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5">
                               <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0">
@@ -1426,9 +1479,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     </div>
                                     
                                     <div className="bg-pink-50/60 rounded-lg p-3 border border-pink-200">
-                                      <p className="font-bold mb-1.5 text-pink-900">🎯 Pourquoi l'Option 2 est optimale</p>
+                                      <p className="font-bold mb-1.5 text-pink-900">
+                                        🎯 {option2_respectsCap ? "Option 2 respecte le CPM Vendu Cap" : "Pourquoi l'Option 2 est optimale"}
+                                      </p>
                                       <p className="text-xs leading-relaxed">
-                                        {kpiExplanations.option2}
+                                        {option2_explanation}. {kpiExplanations.option2}
                                       </p>
                                     </div>
                                     
