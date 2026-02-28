@@ -127,6 +127,15 @@ export default function App() {
           {activeTab === "cockpit" && <CockpitYield project={activeProject} onChange={setCurrentProject} />}
           {activeTab === "tracking" && <CampaignTracking project={activeProject} onChange={setCurrentProject} />}
           {activeTab === "insights" && <Insights project={activeProject} />}
+          {activeTab === "portfolio" && (
+    <PortfolioOverview 
+      projects={projects}
+      onSelectProject={(id) => {
+        loadProject(id);
+        setActiveTab("cockpit");
+      }}
+    />
+  )}
           {activeTab === "cycle" && <OptimizationCycle project={activeProject} />}
           {activeTab === "portfolio" && <Portfolio projects={projects} />}
           {activeTab === "market" && <MarketWatch currentCost={activeProject.cpmCostActuel} />}
