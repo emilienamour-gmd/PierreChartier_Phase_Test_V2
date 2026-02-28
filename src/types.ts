@@ -1,4 +1,5 @@
-// types.ts - Interfaces TypeScript pour l'application
+// Fichier : src/types.ts
+// REMPLACE COMPLÈTEMENT TON FICHIER ACTUEL
 
 export interface LineItem {
   id: string;
@@ -17,7 +18,7 @@ export interface ProjectSnapshot {
   cpmRevenueActual: number;
   actualKpi: number;
   gainRealized: number;
-  action: "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION" | "DAILY_UPDATE" | "MANUAL";
+  action: "MARGIN_UP" | "MARGIN_DOWN" | "OPTIMIZATION" | "SNAPSHOT";
   note?: string;
 }
 
@@ -33,18 +34,6 @@ export interface ProjectNote {
   content: string;
 }
 
-// 🆕 NOUVELLE INTERFACE : Entrée quotidienne pour le suivi campagne
-export interface DailyEntry {
-  date: string; // Format ISO "YYYY-MM-DD"
-  budgetSpent: number; // Budget dépensé ce jour-là
-  cpmRevenue: number; // CPM Revenu du jour
-  marginPct: number; // Marge % du jour
-  kpiActual: number; // KPI actuel du jour
-  impressions?: number; // Impressions (optionnel)
-  clicks?: number; // Clics (optionnel)
-  conversions?: number; // Conversions (optionnel)
-}
-
 export interface ProjectData {
   id: string;
   name: string;
@@ -55,43 +44,39 @@ export interface ProjectData {
   cpmSoldCap: number;
   cpmRevenueActual: number;
   cpmCostActuel: number;
+  margeInput: number;
   kpiType: string;
   targetKpi: number;
   actualKpi: number;
   inputMode: "CPM Cost" | "Marge %";
-  margeInput: number;
-  uplift: number;
   lineItems: LineItem[];
   history?: ProjectSnapshot[];
   marginPeriods?: MarginPeriod[];
   notes?: ProjectNote[];
-  dailyEntries?: DailyEntry[]; // 🆕 Ajout du suivi quotidien
-  createdAt?: string;
+  uplift?: number;
   updatedAt?: string;
-  lastModified?: number;
 }
 
+// ✅ DEFAULT_PROJECT : TOUS LES CHAMPS À ZÉRO
 export const DEFAULT_PROJECT: ProjectData = {
   id: "",
-  name: "Nouveau Projet",
+  name: "Nouvelle Campagne",
   currency: "€ (EUR)",
-  budgetTotal: 50000,
-  budgetSpent: 0,
-  durationDays: 30,
-  cpmSoldCap: 8.0,
-  cpmRevenueActual: 8.0,
-  cpmCostActuel: 6.4,
-  kpiType: "CPC",
-  targetKpi: 0.5,
-  actualKpi: 0.45,
+  budgetTotal: 0,           // ← ZÉRO
+  budgetSpent: 0,           // ← ZÉRO
+  durationDays: 30,         // ← 30 jours par défaut
+  cpmSoldCap: 0,            // ← ZÉRO
+  cpmRevenueActual: 0,      // ← ZÉRO
+  cpmCostActuel: 0,         // ← ZÉRO
+  margeInput: 0,            // ← ZÉRO
+  kpiType: "CPA",
+  targetKpi: 0,             // ← ZÉRO
+  actualKpi: 0,             // ← ZÉRO
   inputMode: "Marge %",
-  margeInput: 20,
+  lineItems: [],            // ← VIDE
+  history: [],              // ← VIDE
+  marginPeriods: [],        // ← VIDE
+  notes: [],                // ← VIDE
   uplift: 3.0,
-  lineItems: [],
-  history: [],
-  marginPeriods: [],
-  notes: [],
-  dailyEntries: [], // 🆕 Initialisation vide
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
 };
