@@ -296,7 +296,11 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
 
     // ✅ MOYENNES PONDÉRÉES CORRECTES : Σ(CPM × Budget) / Σ(Budget)
     const avgCpmCost = totalSpent > 0 ? totalCost / totalSpent : cpmCostActuelCalc;
-    const avgCpmRevenue = project.dailyEntries.reduce((sum, e) => sum + (e.cpmRevenue || 0), 0) / project.dailyEntries.length;
+    const totalImpressions = project.dailyEntries.reduce((sum, e) => {
+  const cpm = e.cpmRevenue || 0;
+  return sum + (cpm > 0 ? (e.budgetSpent || 0) / cpm : 0);
+}, 0);
+const avgCpmRevenue = totalImpressions > 0 ? totalSpent / totalImpressions : project.cpmRevenueActual;
     const avgMargin = totalSpent > 0 ? (totalGain / totalSpent) * 100 : currentMarginPctCalc;
     const avgKpi = totalSpent > 0 ? totalKpiWeighted / totalSpent : project.actualKpi;
 
