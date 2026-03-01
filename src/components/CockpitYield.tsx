@@ -26,7 +26,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [uplift, setUplift] = useState(project.uplift ?? 3.0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [proposedOptimizations, setProposedOptimizations] = useState<OptimizationItem[] | null>(null);
-  const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | null>(null);
+  const [marginGoal, setMarginGoal] = useState<"increase" | "decrease" | "boost_kpi" | null>(null);
   const [respectCpmCap, setRespectCpmCap] = useState<boolean>(true);
   const [lockedLines, setLockedLines] = useState<Set<string>>(new Set());
   const [attrClick, setAttrClick] = useState(7);
@@ -374,9 +374,131 @@ const avgCpmRevenue = totalImpressions > 0 ? totalSpent / totalImpressions : pro
   };
   const handleOptimize = () => {
     if (!marginGoal) {
-      alert("Veuillez sélectionner un objectif (Augmenter ou Baisser la marge) avant d'optimiser.");
+      alert("Veuillez sélectionner un objectif avant d'optimiser.");
       return;
     }
+    // 🚀 OPTION 3 : RÉPARTITION SPENDS BOOST KPI
+if (marginGoal === "boost_kpi") {
+  const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
+  
+  // 1️⃣ CALCULER LE SCORE DE PERFORMANCE DE CHAQUE LIGNE
+  const analyzedItems: OptimizationItem[] = project.lineItems.map(li => {
+    const actual = li.kpiActual || 0;
+    const target = project.targetKpi || 0.0001;
+    
+    let perfScore = 0;
+    let perfCategory: "dead" | "underperforming" | "ok" | "good" | "star" = "ok";
+    
+    if (isFin) {
+      // KPI financier : plus bas = meilleur
+      if (actual === 0 || actual > target * 2) {
+        perfScore = 0.1;
+        perfCategory = "dead";
+      } else if (actual <= target * 0.7) {
+        perfScore = 5.0;  // STAR : 30% meilleur que l'objectif
+        perfCategory = "star";
+      } else if (actual <= target * 0.85) {
+        perfScore = 3.0;  // GOOD : 15% meilleur
+        perfCategory = "good";
+      } else if (actual <= target * 1.1) {
+        perfScore = 1.0;  // OK : proche objectif
+        perfCategory = "ok";
+      } else if (actual <= target * 1.5) {
+        perfScore = 0.5;  // UNDERPERFORMING
+        perfCategory = "underperforming";
+      } else {
+        perfScore = 0.1;  // DEAD
+        perfCategory = "dead";
+      }
+    } else {
+      // KPI qualité : plus haut = meilleur
+      if (actual === 0 || actual < target * 0.5) {
+        perfScore = 0.1;
+        perfCategory = "dead";
+      } else if (actual >= target * 1.3) {
+        perfScore = 5.0;  // STAR : 30% au-dessus
+        perfCategory = "star";
+      } else if (actual >= target * 1.15) {
+        perfScore = 3.0;  // GOOD : 15% au-dessus
+        perfCategory = "good";
+      } else if (actual >= target * 0.9) {
+        perfScore = 1.0;  // OK : proche objectif
+        perfCategory = "ok";
+      } else if (actual >= target * 0.7) {
+        perfScore = 0.5;  // UNDERPERFORMING
+        perfCategory = "underperforming";
+      } else {
+        perfScore = 0.1;  // DEAD
+        perfCategory = "dead";
+      }
+    }
+    
+    return { ...li, perfScore, perfCategory };
+  });
+  
+  // 2️⃣ CALCULER LE BUDGET TOTAL
+  const totalBudget = project.lineItems.reduce((acc, li) => acc + (li.spend || 0), 0);
+  const lockedSpend = analyzedItems.filter(li => lockedLines.has(li.id)).reduce((acc, li) => acc + (li.spend || 0), 0);
+  const availableBudget = totalBudget - lockedSpend;
+  
+  // 3️⃣ CALCULER LE SCORE TOTAL (lignes non verrouillées)
+  const unlockedItems = analyzedItems.filter(li => !lockedLines.has(li.id));
+  const totalScore = unlockedItems.reduce((acc, li) => acc + (li.perfScore || 0), 0);
+  
+  // 4️⃣ REDISTRIBUER LES BUDGETS
+  const optimizedItems: OptimizationItem[] = analyzedItems.map(li => {
+    if (lockedLines.has(li.id)) {
+      return {
+        ...li,
+        newMargin: li.marginPct,
+        newCpmRevenue: li.cpmRevenue,
+        action: "🔒 Verrouillée"
+      };
+    }
+    
+    // Budget théorique basé sur le score
+    const theoreticalBudget = totalScore > 0 
+      ? ((li.perfScore || 0) / totalScore) * availableBudget 
+      : (li.spend || 0);
+    
+    // Lissage : 70% nouveau + 30% ancien (pour éviter changements trop brutaux)
+    let newBudget = (theoreticalBudget * 0.7) + ((li.spend || 0) * 0.3);
+    
+    // Limiter à ±50% du budget actuel
+    const maxChange = (li.spend || 0) * 0.5;
+    const minBudget = Math.max(0, (li.spend || 0) - maxChange);
+    const maxBudget = (li.spend || 0) + maxChange;
+    newBudget = Math.max(minBudget, Math.min(maxBudget, newBudget));
+    
+    // Déterminer l'action
+    let action = "";
+    const budgetChange = newBudget - (li.spend || 0);
+    const budgetChangePct = (li.spend || 0) > 0 ? (budgetChange / (li.spend || 0)) * 100 : 0;
+    
+    if (li.perfCategory === "star") {
+      action = `⭐ STAR → +${budgetChangePct.toFixed(0)}% budget`;
+    } else if (li.perfCategory === "good") {
+      action = `✅ GOOD → ${budgetChangePct > 0 ? "+" : ""}${budgetChangePct.toFixed(0)}% budget`;
+    } else if (li.perfCategory === "ok") {
+      action = `➖ OK → ${budgetChangePct > 0 ? "+" : ""}${budgetChangePct.toFixed(0)}% budget`;
+    } else if (li.perfCategory === "underperforming") {
+      action = `⚠️ SOUS-PERF → ${budgetChangePct.toFixed(0)}% budget`;
+    } else {
+      action = `💀 DEAD → ${budgetChangePct.toFixed(0)}% budget`;
+    }
+    
+    return {
+      ...li,
+      spend: Number(newBudget.toFixed(2)),
+      newMargin: li.marginPct,  // INCHANGÉ
+      newCpmRevenue: li.cpmRevenue,  // INCHANGÉ
+      action
+    };
+  });
+  
+  setProposedOptimizations(optimizedItems);
+  return;
+}
 
     const isFin = !["Viewability", "VTR", "CTR"].includes(project.kpiType);
     
@@ -589,9 +711,11 @@ const avgCpmRevenue = totalImpressions > 0 ? totalSpent / totalImpressions : pro
   const applyOptimizations = () => {
     if (proposedOptimizations) {
       const snapshot = createSnapshot(
-        "OPTIMIZATION",
-        `Optimisation multi-lines : ${marginGoal === "increase" ? "Augmentation" : "Baisse"} de marge`
-      );
+  "OPTIMIZATION",
+  marginGoal === "boost_kpi" 
+    ? `Optimisation multi-lines : Redistribution Spends Boost KPI`
+    : `Optimisation multi-lines : ${marginGoal === "increase" ? "Augmentation" : "Baisse"} de marge`
+);
       
       const newHistory = [...(project.history || []), snapshot];
       
@@ -1783,19 +1907,25 @@ const avgCpmRevenue = totalImpressions > 0 ? totalSpent / totalImpressions : pro
                       <p className="text-sm text-blue-700">Choisissez votre stratégie avant de lancer l'algorithme.</p>
                     </div>
                     <div className="flex gap-2 mb-4">
-                      <button 
-                        onClick={() => setMarginGoal("increase")}
-                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
-                      >
-                        📈 Augmenter la Marge
-                      </button>
-                      <button 
-                        onClick={() => setMarginGoal("decrease")}
-                        className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
-                      >
-                        📉 Baisser la Marge (Boost KPI)
-                      </button>
-                    </div>
+  <button 
+    onClick={() => setMarginGoal("boost_kpi")}
+    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "boost_kpi" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-600 border border-purple-200 hover:bg-purple-100")}
+  >
+    🚀 Répart Spends Boost KPI
+  </button>
+  <button 
+    onClick={() => setMarginGoal("increase")}
+    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "increase" ? "bg-blue-600 text-white shadow-md" : "bg-white text-blue-600 border border-blue-200 hover:bg-blue-100")}
+  >
+    📈 Augmenter la Marge
+  </button>
+  <button 
+    onClick={() => setMarginGoal("decrease")}
+    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-colors", marginGoal === "decrease" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-600 border border-amber-200 hover:bg-amber-50")}
+  >
+    📉 Baisser la Marge (Boost KPI)
+  </button>
+</div>
                     
                     <div className="border-t border-blue-200 pt-4">
                       <h4 className="font-bold text-blue-900 mb-2 text-sm">⚙️ Contrainte CPM Vendu Cap</h4>
