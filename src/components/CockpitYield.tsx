@@ -1252,16 +1252,50 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                         const marginImpactDirection = isFin ? (isIncreasingMargin ? 1 : -1) : (isIncreasingMargin ? -1 : 1);
                         const baseMarginImpact = 1 + (marginChangePct * finalMarginImpact * marginImpactDirection);
                         
-                        // ✅ OPTION 1 : BID STABLE = FOURCHETTE TRÈS RÉDUITE
-                        // Bid stable = MÊME INVENTAIRE = Impact purement mathématique
-                        const option1_center = project.actualKpi * baseMarginImpact;
-                        
-                        // 🔥 FOURCHETTE RÉDUITE : ±8% seulement (pas 60% comme avant !)
-                        // Pas de volatilité d'inventaire car le bid ne change pas
-                        const option1_tightRange = option1_center * 0.08;  // Marge d'erreur minimale
-                        
-                        option1_kpi_optimistic = option1_center - option1_tightRange;
-                        option1_kpi_pessimistic = option1_center + option1_tightRange;
+                        // ========================================
+        // 🔥 OPTION 1 : CALCUL MATHÉMATIQUE EXACT
+        // ========================================
+        
+        // Bid stable = MÊME inventaire = MÊME conversion rate
+        // → Impact PUREMENT MATHÉMATIQUE du ratio CPM Revenue
+        
+        const currentCpmRevenue = project.cpmRevenueActual;
+        const currentCpmCost = cpmCostActuelCalc;
+        
+        // Nouvelle CPM Revenue avec la nouvelle marge
+        const newCpmRevenue_option1 = currentCpmCost / (1 - newMargin / 100);
+        
+        // Ratio CPM Revenue (impact mathématique pur)
+        const cpmRevenueRatio = newCpmRevenue_option1 / currentCpmRevenue;
+        
+        // Impact EXACT sur le KPI (financier)
+        let option1_kpi_exact: number;
+        
+        if (isFin) {
+          // KPI financier : CPCV = CPM / (completion_rate × 1000)
+          // Même inventaire → même completion_rate
+          // Donc CPCV_new / CPCV_old = CPM_new / CPM_old
+          option1_kpi_exact = project.actualKpi * cpmRevenueRatio;
+        } else {
+          // KPI qualité : léger impact créative (marge monte = qualité baisse légèrement)
+          const qualityImpact = isIncreasingMargin ? 0.98 : 1.02;
+          option1_kpi_exact = project.actualKpi * qualityImpact;
+        }
+        
+        // 🔥 FOURCHETTE MINIMALE : ±3-5% (variations naturelles conversion rate)
+        // PAS de volatilité inventaire car bid INCHANGÉ
+        let option1_uncertainty: number;
+        
+        if (isFin) {
+          // KPI financier : ±3% (variations naturelles du taux de complétion)
+          option1_uncertainty = option1_kpi_exact * 0.03;
+        } else {
+          // KPI qualité : ±5% (variations créatives)
+          option1_uncertainty = option1_kpi_exact * 0.05;
+        }
+        
+        option1_kpi_optimistic = option1_kpi_exact - option1_uncertainty;
+        option1_kpi_pessimistic = option1_kpi_exact + option1_uncertainty;
                         
                         // 🎯 BID IMPACT pour Option 2 - PUREMENT MATHÉMATIQUE (sans pari créative)
                         const bidImpactDirection = isFin ? 1 : -1;
@@ -1492,7 +1526,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
                                     <div className="text-xs font-bold text-blue-900 mb-3 flex items-center justify-between">
                                       <span>{project.kpiType} Projeté</span>
-                                      <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">PRÉCIS</span>
+                                      <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">EXACT</span>
                                     </div>
                                     
                                     <div className={cn("mb-2 p-2 rounded border", option1_meetsTarget_optimistic ? "bg-emerald-50 border-emerald-300" : "bg-orange-50 border-orange-300")}>
@@ -1519,7 +1553,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                       Objectif : <strong>{fmtKpi(targetKpi)}</strong><br/>
                                       Range : <strong>{fmtKpi(option1_range)}</strong>
                                       <div className="text-[10px] text-blue-700 font-bold mt-1">
-                                        ✅ Fourchette RÉDUITE (±8% seulement) car même inventaire
+                                       {isFin ? "Ratio CPM exact" : "Variations créatives"} (±{isFin ? "3" : "5"}%)
                                       </div>
                                     </div>
                                   </div>
@@ -1639,7 +1673,7 @@ export function CockpitYield({ project, onChange }: CockpitYieldProps) {
                                     <div className="bg-purple-50/60 rounded-lg p-3 border border-purple-200">
                                       <p className="font-bold mb-1.5 text-purple-900">📐 Comparaison Volatilité</p>
                                       <p className="text-xs leading-relaxed">
-                                        <strong>Option 1 (Bid Stable):</strong> Range = {fmtKpi(option1_range)} <strong className="text-purple-700">(±8% seulement !)</strong> → Bid INCHANGÉ = MÊME inventaire = Impact purement mathématique.<br/>
+                                        <strong>Option 1 (Bid Stable):</strong> Range = {fmtKpi(option1_range)} <strong className="text-purple-700">(±{isFin ? "3" : "5"}% seulement !)</strong> → Bid INCHANGÉ = MÊME inventaire = Impact purement mathématique.<br/>
                                         <strong>Option 2 (Bid Ajusté):</strong> Range = {fmtKpi(option2_range)} <strong className="text-purple-700">({((option2_range / option1_range) * 100).toFixed(0)}% plus large)</strong> → Bid change de {option2_bidAdjustmentPct > 0 ? '+' : ''}{option2_bidAdjustmentPct.toFixed(1)}% = NOUVEL inventaire + incertitude marché (compétition variable, volatilité). Impact inventaire CERTAIN, fourchette = volatilité marché uniquement.
                                       </p>
                                     </div>
