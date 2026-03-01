@@ -12,6 +12,7 @@ interface CockpitYieldProps {
 
 interface OptimizationItem extends LineItem {
   perfRatio?: number;
+  perfScore?: number;  // 🔥 AJOUT DE CETTE LIGNE
   perfCategory?: "dead" | "underperforming" | "ok" | "good" | "star";
   newMargin?: number;
   newCpmRevenue?: number;
@@ -19,7 +20,6 @@ interface OptimizationItem extends LineItem {
   capAlignmentBonus?: number;
   action?: string;
 }
-
 export function CockpitYield({ project, onChange }: CockpitYieldProps) {
   const [activeTab, setActiveTab] = useState<"analyse" | "comparateur" | "multilines" | "historique" | "notes">("analyse");
   const [dashSource, setDashSource] = useState<"sidebar" | "table">("sidebar");
